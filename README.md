@@ -1,5 +1,13 @@
-# DX11-Engine
+# Vulkan ECS Rendering Engine
 ![Engine-Editor_dwFxeoMlfQ](https://github.com/Code-Gains/DX11-Engine/assets/22920179/44b86a64-15df-4df1-a277-324a2928773a)
+# Prerequisites for development
+Vulkan SDK (Software Development Kit)
+https://vulkan.lunarg.com/sdk/home
+Compiler (LLVM clang Linux and Windows)
+https://github.com/llvm/llvm-project/releases
+
+Extra steps for Windows
+https://visualstudio.microsoft.com/downloads/ Build Tools for Windows
 
 
 ## I am currently implementing features and fixing architecture as much as I can to prepare to implement Vulkan API.
