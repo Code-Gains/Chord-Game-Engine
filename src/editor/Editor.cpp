@@ -5,8 +5,11 @@
 
 int main() {
     ENGINE_LOG_INFO("Editor starting.");
-    Engine::VulkanDevice device;
-    Engine::Renderer renderer;
+    Engine::Core core;
+    core.Init();
+    core.Run();
+    //Engine::VulkanDevice device;
+    //Engine::Renderer renderer;
     // try {
     //     device.Init();
     //     renderer.Init(device);

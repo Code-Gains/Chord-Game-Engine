@@ -2,6 +2,7 @@ add_library(engine STATIC
     Core.cpp
     Renderer.cpp
     VulkanDevice.cpp
+    WindowGLFW.cpp
 )
 
 # Include engine headers + dependencies
