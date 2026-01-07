@@ -1,5 +1,5 @@
 # commands to run
-# cmake -S . -B build -G Ninja -DVulkanSdkDir="C:/VulkanSDK/1.4.335.0"
+# cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DVulkanSdkDir="C:/VulkanSDK/1.4.335.0"
 # cmake --build build --target editor
 
 cmake_minimum_required(VERSION 3.26)

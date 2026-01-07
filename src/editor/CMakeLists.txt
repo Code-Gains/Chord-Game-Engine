@@ -2,6 +2,10 @@ add_executable(editor
     Editor.cpp
 )
 
+target_compile_definitions(editor PRIVATE
+    $<$<CONFIG:Debug>:DEBUG>
+)
+
 target_include_directories(editor
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..       # points to src/

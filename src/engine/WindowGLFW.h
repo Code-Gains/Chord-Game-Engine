@@ -1,17 +1,22 @@
 #pragma once
-#define GLFW_INCLUDE_NONE
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <VkBootstrap.h>
 #include <vector>
 
 namespace Engine {
     class WindowGLFW {
-        GLFWwindow* window = nullptr;
+        GLFWwindow* _window = nullptr;
+
+        int _width;
+        int _height;
         void InitGLFW();
-        void ShutdownGLFW();
 
     public:
+        // Control
         WindowGLFW(int width, int height, const char* title);
         ~WindowGLFW();
+        void ShutdownGLFW();
 
         // non-copyable
         WindowGLFW(const WindowGLFW&) = delete;
@@ -20,9 +25,14 @@ namespace Engine {
         void PollEvents();
         bool ShouldClose() const;
 
-        GLFWwindow* GetNativeHandle() const { return window; };
+        GLFWwindow* GetNativeHandle() const { return _window; };
+        VkSurfaceKHR CreateAndGetWindowSurface(VkInstance instance);
 
         // Vulkan
         std::vector<const char*> GetRequiredVulkanExtensions() const;
+
+        // Getters
+        int GetWidth();
+        int GetHeight();
     };
 } // namespace engine
