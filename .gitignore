@@ -24,15 +24,6 @@ build.ninja
 rules.ninja
 
 # =====================
-# VS Code
-# =====================
-.vscode/*
-!.vscode/settings.json
-!.vscode/launch.json
-!.vscode/tasks.json
-!.vscode/extensions.json
-
-# =====================
 # OS / editor junk
 # =====================
 .DS_Store
