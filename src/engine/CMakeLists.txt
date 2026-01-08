@@ -6,7 +6,7 @@ add_library(vkbootstrap STATIC
 target_include_directories(vkbootstrap
     PUBLIC
         ${vkbootstrap_SOURCE_DIR}/src
-        ${VulkanSdkDir}/Include
+        ${VulkanSdkDir}/include
 )
 
 # Engine library
@@ -24,16 +24,23 @@ target_compile_definitions(engine PRIVATE
 # Include engine headers + dependencies
 target_include_directories(engine
     PUBLIC
-        ${VulkanSdkDir}/Include         # Vulkan headers
+        ${VulkanSdkDir}/include         # Vulkan headers
         ${CMAKE_CURRENT_SOURCE_DIR}     # engine headers
         ${glfw_SOURCE_DIR}/include      # GLFW headers
         ${glm_SOURCE_DIR}               # GLM headers
 )
 
+# Vulkan library (cross-platform)
+if(WIN32)
+    set(VulkanLib "${VulkanSdkDir}/Lib/vulkan-1.lib")
+elseif(UNIX)
+    set(VulkanLib "${VulkanSdkDir}/lib/libvulkan.so")
+endif()
+
 # Link libraries
 target_link_libraries(engine
     PUBLIC
         vkbootstrap
-        ${VulkanSdkDir}/Lib/vulkan-1.lib
         glfw
+        ${VulkanLib}   # cross-platform Vulkan library
 )

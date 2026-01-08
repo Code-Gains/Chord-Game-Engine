@@ -1,5 +1,6 @@
 #include <chrono>
 #include <thread>
+#include <cmath>
 #include "Core.h"
 #include "VkInit.h"
 #include "VkImages.h"
