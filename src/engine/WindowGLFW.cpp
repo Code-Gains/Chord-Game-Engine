@@ -17,6 +17,18 @@ namespace Engine {
         _window = glfwCreateWindow(_width, _height, title, nullptr, nullptr);
         if (!_window)
             throw std::runtime_error("Failed to create GLFW window");
+        
+        // hook for our window to track internal GLFW window size info
+        glfwSetFramebufferSizeCallback(_window, [](GLFWwindow* window, int width, int height) {
+            // Store the new size in the user pointer
+            auto win = reinterpret_cast<Engine::WindowGLFW*>(glfwGetWindowUserPointer(window));
+            if (win) {
+                win->_width = width;
+                win->_height = height;
+                win->_resized = true; // flag for Core to handle
+            }
+        });
+        glfwSetWindowUserPointer(_window, this);
         ENGINE_LOG_INFO("Window created");
     }
 
@@ -65,5 +77,12 @@ namespace Engine {
 
     int Engine::WindowGLFW::GetHeight() {
         return _height;
+    }
+
+    bool Engine::WindowGLFW::WasResized() {
+        return _resized;
+    }
+    void Engine::WindowGLFW::ResetResizedFlag() {
+        _resized = false;
     }
 } // namespace engine

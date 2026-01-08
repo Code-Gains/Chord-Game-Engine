@@ -10,6 +10,7 @@ namespace Engine {
 
         int _width;
         int _height;
+        bool _resized = false;
         void InitGLFW();
 
     public:
@@ -34,5 +35,8 @@ namespace Engine {
         // Getters
         int GetWidth();
         int GetHeight();
+
+        bool WasResized();
+        void ResetResizedFlag();
     };
 } // namespace engine
