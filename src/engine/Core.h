@@ -5,11 +5,13 @@
 
 namespace Engine {
     struct FrameData {
-
         VkCommandPool _commandPool;
         VkCommandBuffer _mainCommandBuffer;
+        VkSemaphore _swapchainSemaphore;
+        VkSemaphore _renderSemaphore;
+	    VkFence _renderFence;
     };
-    constexpr unsigned int FRAME_OVERLAP = 2;
+    constexpr unsigned int FRAME_OVERLAP = 2; // Swapchain image count? TODO
 
     class Core {
         std::unique_ptr<WindowGLFW> _window;
@@ -45,6 +47,8 @@ namespace Engine {
 
         VkQueue _graphicsQueue;
         uint32_t _graphicsQueueFamily;
+
+        void Draw();
 
     public:
         Core() = default;
