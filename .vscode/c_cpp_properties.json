@@ -10,6 +10,8 @@
             "includePath": [
                 "${workspaceFolder}/src/engine",
                 "${workspaceFolder}/build/_deps/glfw-src/include",
+                "${workspaceFolder}/build/_deps/glm-src",
+                "${workspaceFolder}/build/_deps/fmt-src/include",
                 "C:/VulkanSDK/1.4.335.0/Include",
                 "${workspaceFolder}/src"
             ]
@@ -23,6 +25,8 @@
             "includePath": [
                 "${workspaceFolder}/src/engine",
                 "${workspaceFolder}/build/_deps/glfw-src/include",
+                "${workspaceFolder}/build/_deps/glm-src",
+                "${workspaceFolder}/build/_deps/fmt-src/include",
                 "${env:VULKAN_SDK}/include",
                 "${workspaceFolder}/src"
             ]

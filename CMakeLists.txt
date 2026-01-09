@@ -9,6 +9,8 @@ project(MyVulkanEngine LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_definitions(FMT_USE_CONSTEXPR=0)
+
 
 include(FetchContent)
 
@@ -48,6 +50,16 @@ FetchContent_Declare(
     GIT_TAG main
 )
 FetchContent_MakeAvailable(vkbootstrap)
+
+# ---------------------
+# fmt
+# ---------------------
+FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG 10.2.1
+)
+FetchContent_MakeAvailable(fmt)
 
 # ---------------------
 # Add engine + editor

@@ -9,6 +9,7 @@ target_include_directories(vkbootstrap
         ${VulkanSdkDir}/include
 )
 
+
 # Engine library
 add_library(engine STATIC
     Core.cpp
@@ -42,5 +43,6 @@ target_link_libraries(engine
     PUBLIC
         vkbootstrap
         glfw
+        fmt::fmt
         ${VulkanLib}   # cross-platform Vulkan library
 )

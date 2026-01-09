@@ -5,14 +5,20 @@
 #include "VkInit.h"
 #include "VkImages.h"
 
-#define VK_CHECK(x)                                                  \
-do {                                                              \
-    VkResult err = x;                                             \
-    if (err != VK_SUCCESS) {                                      \
-        std::cerr << "Detected Vulkan error: " << err << std::endl; \
-        assert(false);                                            \
-    }                                                             \
-} while (0)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+#pragma clang diagnostic pop
+
+// #define VK_CHECK(x)                                                  \
+// do {                                                              \
+//     VkResult err = x;                                             \
+//     if (err != VK_SUCCESS) {                                      \
+//         std::cerr << "Detected Vulkan error: " << err << std::endl; \
+//         assert(false);                                            \
+//     }                                                             \
+// } while (0)
 
 namespace Engine {
 #ifdef DEBUG
@@ -78,6 +84,18 @@ namespace Engine {
         // use vkbootstrap to get a Graphics queue
         _graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
         _graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+
+         // initialize the memory allocator
+        VmaAllocatorCreateInfo allocatorInfo = {};
+        allocatorInfo.physicalDevice = _chosenGPU;
+        allocatorInfo.device = _device;
+        allocatorInfo.instance = _instance;
+        allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+        vmaCreateAllocator(&allocatorInfo, &_allocator);
+
+        _mainDeletionQueue.push_function([&]() {
+            vmaDestroyAllocator(_allocator);
+        });
     }
 
     void Core::InitSwapchain() {
@@ -151,6 +169,7 @@ namespace Engine {
     {
         // wait until the gpu has finished rendering the last frame. Timeout of 1 second
         VK_CHECK(vkWaitForFences(_device, 1, &GetCurrentFrame()._renderFence, true, 1000000000));
+        GetCurrentFrame()._deletionQueue.flush();
         VK_CHECK(vkResetFences(_device, 1, &GetCurrentFrame()._renderFence));
         //request image from the swapchain
 	    uint32_t swapchainImageIndex;
@@ -267,6 +286,7 @@ namespace Engine {
 
     void Core::Shutdown() {
         if (_isInitialized) {
+            vkDeviceWaitIdle(_device);
             for (int i = 0; i < FRAME_OVERLAP; i++) {
 	
                 //already written from before
@@ -276,9 +296,9 @@ namespace Engine {
                 vkDestroyFence(_device, _frames[i]._renderFence, nullptr);
                 vkDestroySemaphore(_device, _frames[i]._renderSemaphore, nullptr);
                 vkDestroySemaphore(_device ,_frames[i]._swapchainSemaphore, nullptr);
+                _frames[i]._deletionQueue.flush();
             }
-            //make sure the gpu has stopped doing its things
-            vkDeviceWaitIdle(_device);
+            _mainDeletionQueue.flush();
 
             for (int i = 0; i < FRAME_OVERLAP; i++) {
                 vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);

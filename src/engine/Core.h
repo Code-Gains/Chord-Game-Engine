@@ -1,15 +1,45 @@
 #pragma once
 #include <VkBootstrap.h>
+#include <deque>
+#include <functional>
 #include "Log.h"
 #include "WindowGLFW.h"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+#include "vk_mem_alloc.h"
+#include "vk_types.h"
+#pragma clang diagnostic pop
+// #define VMA_IMPLEMENTATION
+// #include "vk_mem_alloc.h"
+
+
 namespace Engine {
+    struct DeletionQueue
+    {
+        std::deque<std::function<void()>> deletors;
+
+        void push_function(std::function<void()>&& function) {
+            deletors.push_back(function);
+        }
+
+        void flush() {
+            // reverse iterate the deletion queue to execute all the functions
+            for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+                (*it)(); //call functors
+            }
+
+            deletors.clear();
+        }
+    };
+
     struct FrameData {
         VkCommandPool _commandPool;
         VkCommandBuffer _mainCommandBuffer;
         VkSemaphore _swapchainSemaphore;
         VkSemaphore _renderSemaphore;
 	    VkFence _renderFence;
+        DeletionQueue _deletionQueue;
     };
     constexpr unsigned int FRAME_OVERLAP = 2; // Swapchain image count? TODO
 
@@ -37,6 +67,8 @@ namespace Engine {
         std::vector<VkImageView> _swapchainImageViews;
         VkExtent2D _swapchainExtent;
 
+        VmaAllocator _allocator;
+
         void CreateSwapchain(uint32_t width, uint32_t height);
 	    void DestroySwapchain();
 
@@ -47,7 +79,10 @@ namespace Engine {
 
         VkQueue _graphicsQueue;
         uint32_t _graphicsQueueFamily;
+        DeletionQueue _mainDeletionQueue;
 
+        AllocatedImage _drawImage;
+	    VkExtent2D _drawExtent;
         void Draw();
 
     public:
