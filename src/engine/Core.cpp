@@ -2,23 +2,15 @@
 #include <thread>
 #include <cmath>
 #include "Core.h"
-#include "VkInit.h"
-#include "VkImages.h"
+//#include "VkInit.h"
+#include "vk_initializers.h"
+#include "vk_images.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 #pragma clang diagnostic pop
-
-// #define VK_CHECK(x)                                                  \
-// do {                                                              \
-//     VkResult err = x;                                             \
-//     if (err != VK_SUCCESS) {                                      \
-//         std::cerr << "Detected Vulkan error: " << err << std::endl; \
-//         assert(false);                                            \
-//     }                                                             \
-// } while (0)
 
 namespace Engine {
 #ifdef DEBUG
@@ -100,19 +92,56 @@ namespace Engine {
 
     void Core::InitSwapchain() {
         CreateSwapchain(_window->GetWidth(), _window->GetHeight());
+        //     //draw image size will match the window
+        // VkExtent3D drawImageExtent = {
+        //     _windowExtent.width,
+        //     _windowExtent.height,
+        //     1
+        // };
+
+        // //hardcoding the draw format to 32 bit float
+        // _drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+        // _drawImage.imageExtent = drawImageExtent;
+
+        // VkImageUsageFlags drawImageUsages{};
+        // drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        // drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        // drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+        // drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        // VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
+
+        // //for the draw image, we want to allocate it from gpu local memory
+        // VmaAllocationCreateInfo rimg_allocinfo = {};
+        // rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        // rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        // //allocate and create the image
+        // vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
+
+        // //build a image-view for the draw image to use for rendering
+        // VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+
+        // VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
+
+        // //add to deletion queues
+        // _mainDeletionQueue.push_function([=]() {
+        //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
+        //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
+        // });
     }
 
     void Core::InitCommands() {
         //create a command pool for commands submitted to the graphics queue.
 	//we also want the pool to allow for resetting of individual command buffers
-        VkCommandPoolCreateInfo commandPoolInfo = VkInit::CommandPoolCreateInfo(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+        VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
         for (int i = 0; i < FRAME_OVERLAP; i++) {
 
             VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_frames[i]._commandPool));
 
             // allocate the default command buffer that we will use for rendering
-            VkCommandBufferAllocateInfo cmdAllocInfo = VkInit::CommandBufferAllocateInfo(_frames[i]._commandPool, 1);
+            VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
 
             VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_frames[i]._mainCommandBuffer));
         }
@@ -123,8 +152,8 @@ namespace Engine {
         //one fence to control when the gpu has finished rendering the frame,
         //and 2 semaphores to syncronize rendering with swapchain
         //we want the fence to start signalled so we can wait on it on the first frame
-        VkFenceCreateInfo fenceCreateInfo = VkInit::FenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-        VkSemaphoreCreateInfo semaphoreCreateInfo = VkInit::SemaphoreCreateInfo();
+        VkFenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
+        VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
 
         for (int i = 0; i < FRAME_OVERLAP; i++) {
             VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_frames[i]._renderFence));
@@ -182,26 +211,26 @@ namespace Engine {
         VK_CHECK(vkResetCommandBuffer(cmd, 0));
 
         //begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
-        VkCommandBufferBeginInfo cmdBeginInfo = VkInit::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
         //start the command buffer recording
         VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
         //make the swapchain image into writeable mode before rendering
-        VkUtil::TransitionImage(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
         //make a clear-color from frame number. This will flash with a 120 frame period.
         VkClearColorValue clearValue;
         float flash = std::abs(std::sin(_frameNumber / 120.f));
         clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
 
-        VkImageSubresourceRange clearRange = VkInit::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+        VkImageSubresourceRange clearRange = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
 
         //clear image
         vkCmdClearColorImage(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
 
         //make the swapchain image into presentable mode
-        VkUtil::TransitionImage(cmd, _swapchainImages[swapchainImageIndex],VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex],VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         //finalize the command buffer (we can no longer add commands, but it can now be executed)
         VK_CHECK(vkEndCommandBuffer(cmd));
@@ -210,12 +239,12 @@ namespace Engine {
         //we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
         //we will signal the _renderSemaphore, to signal that rendering has finished
 
-        VkCommandBufferSubmitInfo cmdinfo = VkInit::CommandBufferSubmitInfo(cmd);	
+        VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);	
         
-        VkSemaphoreSubmitInfo waitInfo = VkInit::SemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,GetCurrentFrame()._swapchainSemaphore);
-        VkSemaphoreSubmitInfo signalInfo = VkInit::SemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, GetCurrentFrame()._renderSemaphore);	
+        VkSemaphoreSubmitInfo waitInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,GetCurrentFrame()._swapchainSemaphore);
+        VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, GetCurrentFrame()._renderSemaphore);	
         
-        VkSubmitInfo2 submit = VkInit::SubmitInfo(&cmdinfo,&signalInfo,&waitInfo);	
+        VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo,&signalInfo,&waitInfo);	
 
         //submit command buffer to the queue and execute it.
         // _renderFence will now block until the graphic commands finish execution

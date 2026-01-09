@@ -51,16 +51,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(vkbootstrap)
 
 # ---------------------
-# fmt
-# ---------------------
-FetchContent_Declare(
-    fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG 10.2.1
-)
-FetchContent_MakeAvailable(fmt)
-
-# ---------------------
 # Add engine + editor
 # ---------------------
 add_subdirectory(src/engine)

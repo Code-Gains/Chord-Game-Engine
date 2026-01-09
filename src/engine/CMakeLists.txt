@@ -16,7 +16,10 @@ add_library(engine STATIC
     Renderer.cpp
     VulkanDevice.cpp
     WindowGLFW.cpp
+    vk_initializers.cpp
+    vk_images.cpp
 )
+
 
 target_compile_definitions(engine PRIVATE
     $<$<CONFIG:Debug>:DEBUG>
@@ -43,6 +46,5 @@ target_link_libraries(engine
     PUBLIC
         vkbootstrap
         glfw
-        fmt::fmt
         ${VulkanLib}   # cross-platform Vulkan library
 )

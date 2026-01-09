@@ -16,8 +16,6 @@
 #include <vulkan/vk_enum_string_helper.h>
 #include <vk_mem_alloc.h>
 
-#include <fmt/core.h>
-
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 //< intro 
@@ -137,11 +135,12 @@ struct Node : public IRenderable {
 };
 //< node_types
 //> intro
-#define VK_CHECK(x) \
-    do { \
-        VkResult err = x; \
-        if(err) { \
-            fmt::print(fmt::runtime("Detected Vulkan error: {}"), string_VkResult(err)); \
-        } \
+#define VK_CHECK(x)                                         \
+    do {                                                    \
+        VkResult err = x;                                   \
+        if(err) {                                          \
+            std::cerr << "Detected Vulkan error: "         \
+                      << string_VkResult(err) << "\n";     \
+        }                                                   \
     } while(0)
 //< intro
