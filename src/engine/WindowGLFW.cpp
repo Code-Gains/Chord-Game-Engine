@@ -6,7 +6,7 @@
 #include "Log.h"
 
 namespace Engine {
-    WindowGLFW::WindowGLFW(int width, int height, const char* title) {
+    WindowGLFW::WindowGLFW(uint32_t width, uint32_t height, const char* title) {
         _width = width;
         _height = height;
         InitGLFW();
@@ -23,8 +23,8 @@ namespace Engine {
             // Store the new size in the user pointer
             auto win = reinterpret_cast<Engine::WindowGLFW*>(glfwGetWindowUserPointer(window));
             if (win) {
-                win->_width = width;
-                win->_height = height;
+                win->_width = static_cast<int>(width);
+                win->_height = static_cast<int>(height);
                 win->_resized = true; // flag for Core to handle
             }
         });
@@ -71,11 +71,11 @@ namespace Engine {
         return std::vector<const char*>(extensions, extensions + count);
     }
 
-    int Engine::WindowGLFW::GetWidth() {
+    uint32_t Engine::WindowGLFW::GetWidth() {
         return _width;
     }
 
-    int Engine::WindowGLFW::GetHeight() {
+    uint32_t Engine::WindowGLFW::GetHeight() {
         return _height;
     }
 

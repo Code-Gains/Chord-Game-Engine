@@ -8,14 +8,14 @@ namespace Engine {
     class WindowGLFW {
         GLFWwindow* _window = nullptr;
 
-        int _width;
-        int _height;
+        uint32_t _width;
+        uint32_t _height;
         bool _resized = false;
         void InitGLFW();
 
     public:
         // Control
-        WindowGLFW(int width, int height, const char* title);
+        WindowGLFW(uint32_t width, uint32_t height, const char* title);
         ~WindowGLFW();
         void ShutdownGLFW();
 
@@ -33,8 +33,8 @@ namespace Engine {
         std::vector<const char*> GetRequiredVulkanExtensions() const;
 
         // Getters
-        int GetWidth();
-        int GetHeight();
+        uint32_t GetWidth();
+        uint32_t GetHeight();
 
         bool WasResized();
         void ResetResizedFlag();

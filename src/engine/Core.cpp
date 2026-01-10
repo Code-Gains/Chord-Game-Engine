@@ -154,13 +154,19 @@ namespace Engine {
         //and 2 semaphores to syncronize rendering with swapchain
         //we want the fence to start signalled so we can wait on it on the first frame
         VkFenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
-        //VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
-
+        VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
+        _imageAvailableSemaphores.resize(FRAME_OVERLAP);
         for (int i = 0; i < FRAME_OVERLAP; i++) {
             VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_frames[i]._renderFence));
-
+            VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_imageAvailableSemaphores[i]));
             //VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._swapchainSemaphore));
             //VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._renderSemaphore));
+        }
+
+        // per swapchain image sync
+        _renderFinishedSemaphores.resize(_swapchainImages.size());
+        for (int i = 0; i < _swapchainImages.size(); i++) {
+            VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_renderFinishedSemaphores[i]));
         }
     }
 
@@ -183,20 +189,34 @@ namespace Engine {
         //store swapchain and its related images
         _swapchain = vkbSwapchain.swapchain;
         _swapchainImages = vkbSwapchain.get_images().value();
-
-        VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
-        // per frame sync
-        _imageAvailableSemaphores.resize(FRAME_OVERLAP);
-        for (int i = 0; i < FRAME_OVERLAP; i++) {
-            VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_imageAvailableSemaphores[i]));
-        }
-        // per swapchain image sync
-        _renderFinishedSemaphores.resize(_swapchainImages.size());
-        for (int i = 0; i < _swapchainImages.size(); i++) {
-            VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_renderFinishedSemaphores[i]));
-        }
-
         _swapchainImageViews = vkbSwapchain.get_image_views().value();
+    }
+
+     void Core::RecreateSwapchain(uint32_t width, uint32_t height) {
+        // Destroy current swapchain
+        vkDeviceWaitIdle(_device);
+
+        // Cleanup resources tied to current swapchain
+        CleanupSwapchainResources();
+
+        // Create new swapchain
+        CreateSwapchain(width, height);
+
+        // Create new swapchain resources
+        //uint32_t imageCount = 0;
+        //vkGetSwapchainImagesKHR
+    }
+
+    void Core::CleanupSwapchainResources() {
+        for (auto imageView : _swapchainImageViews) {
+            vkDestroyImageView(_device, imageView, nullptr);
+        }
+        _swapchainImageViews.clear();
+
+        if (_swapchain != VK_NULL_HANDLE) {
+            vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+            _swapchain = VK_NULL_HANDLE;
+        }
     }
 
     void Core::DestroySwapchain() {
@@ -319,7 +339,20 @@ namespace Engine {
         while (!_window->ShouldClose()) {
             auto frameStartTime = std::chrono::high_resolution_clock::now();
             _window->PollEvents();
+
             // Update
+            if (_window->WasResized()) {
+                uint32_t width = _window->GetWidth();
+                uint32_t height = _window->GetHeight();
+                if (width == 0 || height == 0)
+                    _appMinimized = true; // ignore swapchain
+                else {
+                    _appMinimized = false;
+                    // resize swapchain
+                    RecreateSwapchain(width, height);
+                }
+            }
+
             if (_appMinimized) {
                 auto frameEndTime = std::chrono::high_resolution_clock::now();
                 auto frameDuration = frameEndTime - frameStartTime;

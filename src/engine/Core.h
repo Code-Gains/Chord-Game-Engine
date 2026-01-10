@@ -68,6 +68,8 @@ namespace Engine {
         VmaAllocator _allocator;
 
         void CreateSwapchain(uint32_t width, uint32_t height);
+        void RecreateSwapchain(uint32_t width, uint32_t height);
+        void CleanupSwapchainResources();
 	    void DestroySwapchain();
 
         // Graphics
