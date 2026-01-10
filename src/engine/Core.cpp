@@ -239,9 +239,13 @@ namespace Engine {
         // pick per frame semaphore
         VkSemaphore imageAvailableSemaphore = _imageAvailableSemaphores[_frameNumber % FRAME_OVERLAP];
 	    uint32_t swapchainImageIndex;
-        VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX,
+        VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX,
+            imageAvailableSemaphore, nullptr, &swapchainImageIndex);
+        if (result == VK_SUBOPTIMAL_KHR) {
+            RecreateSwapchain(_window->GetWidth(), _window->GetHeight());
+            VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX,
             imageAvailableSemaphore, nullptr, &swapchainImageIndex));
-
+        }
         VkCommandBuffer cmd = GetCurrentFrame()._mainCommandBuffer;
         // now that we are sure that the commands finished executing, we can safely
         // reset the command buffer to begin recording again.
@@ -362,6 +366,7 @@ namespace Engine {
                 {
                     std::this_thread::sleep_for(sleepDuration);
                 }
+                continue;
             }
             Draw();
         }
