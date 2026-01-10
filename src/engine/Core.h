@@ -1,6 +1,7 @@
 #pragma once
 #include <VkBootstrap.h>
 #include <deque>
+#include <vector>
 #include <functional>
 #include "Log.h"
 #include "WindowGLFW.h"
@@ -36,8 +37,6 @@ namespace Engine {
     struct FrameData {
         VkCommandPool _commandPool;
         VkCommandBuffer _mainCommandBuffer;
-        VkSemaphore _swapchainSemaphore;
-        VkSemaphore _renderSemaphore;
 	    VkFence _renderFence;
         DeletionQueue _deletionQueue;
     };
@@ -59,7 +58,6 @@ namespace Engine {
         VkPhysicalDevice _chosenGPU;// GPU chosen as the default device
         VkDevice _device; // Vulkan device for commands
         VkSurfaceKHR _surface; // Vulkan window surface
-
         VkSwapchainKHR _swapchain;
         VkFormat _swapchainImageFormat;
 
@@ -76,6 +74,8 @@ namespace Engine {
         uint32_t _frameNumber = 0;
         FrameData _frames[FRAME_OVERLAP];
         FrameData& GetCurrentFrame() { return _frames[_frameNumber % FRAME_OVERLAP]; };
+        std::vector<VkSemaphore> _imageAvailableSemaphores; // size = FRAME_OVERLAP
+        std::vector<VkSemaphore> _renderFinishedSemaphores; // size = to swapchain image count
 
         VkQueue _graphicsQueue;
         uint32_t _graphicsQueueFamily;
