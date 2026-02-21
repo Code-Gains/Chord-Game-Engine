@@ -265,9 +265,9 @@ namespace Engine {
         VkClearColorValue clearValue;
         float flash = std::abs(std::sin(_frameNumber / 120.f));
         clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
-
+        
         VkImageSubresourceRange clearRange = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
-
+        
         // clear image
         vkCmdClearColorImage(cmd, _swapchainImages[swapchainImageIndex],
             VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);

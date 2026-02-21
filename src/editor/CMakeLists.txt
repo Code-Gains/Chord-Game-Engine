@@ -16,3 +16,13 @@ target_include_directories(editor
 target_link_libraries(editor
     PRIVATE engine
 )
+
+
+# -----------------------------
+# Run target
+# -----------------------------
+add_custom_target(run-editor
+    COMMAND $<TARGET_FILE:editor>
+    DEPENDS editor
+    WORKING_DIRECTORY $<TARGET_FILE_DIR:editor>
+)
