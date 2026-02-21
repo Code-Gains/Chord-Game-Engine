@@ -186,7 +186,7 @@ namespace Engine {
             .value();
 
         _swapchainExtent = vkbSwapchain.extent;
-        //store swapchain and its related images
+        // store swapchain and its related images
         _swapchain = vkbSwapchain.swapchain;
         _swapchainImages = vkbSwapchain.get_images().value();
         _swapchainImageViews = vkbSwapchain.get_image_views().value();
