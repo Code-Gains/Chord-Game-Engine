@@ -16,6 +16,31 @@
 
 
 namespace Engine {
+
+    struct DescriptorLayoutBuilder {
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+        void AddBinding(uint32_t binding, VkDescriptorType type);
+        void Clear();
+        VkDescriptorSetLayout Build(VkDevice device, VkShaderStageFlags shaderStages, void* pNext = nullptr, VkDescriptorSetLayoutCreateFlags flags = 0);
+    };
+
+    struct DescriptorAllocator {
+        struct PoolSizeRatio{
+            VkDescriptorType type;
+            float ratio;
+        };
+
+        VkDescriptorPool pool;
+
+        void InitPool(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> poolRatios);
+        void ClearDescriptor(VkDevice device);
+        void DestroyPool(VkDevice device);
+
+        VkDescriptorSet Allocate(VkDevice device, VkDescriptorSetLayout layout);
+    };
+
+
     struct DeletionQueue
     {
         std::deque<std::function<void()>> deletors;
@@ -49,6 +74,9 @@ namespace Engine {
         void InitSwapchain();
         void InitCommands();
         void InitSyncStructures();
+        void InitPipelines();
+	    void InitBackgroundPipelines();
+        void InitDescriptors();
         bool _appMinimized = false;
         bool _isInitialized = false;
 
@@ -85,12 +113,25 @@ namespace Engine {
 
         AllocatedImage _drawImage;
 	    VkExtent2D _drawExtent;
+
+
+        VkDescriptorSet _drawImageDescriptors;
+        VkDescriptorSetLayout _drawImageDescriptorLayout;
+        VkPipeline _gradientPipeline;
+	    VkPipelineLayout _gradientPipelineLayout;
+
+
         void Draw();
+
+        // Drawing helpers
+        void DrawBackground(VkCommandBuffer cmd);
 
     public:
         Core() = default;
         void Init();
         void Run(); // main loop
         void Shutdown();
+
+        DescriptorAllocator globalDescriptorAllocator;
     };
 } // namespace Engine

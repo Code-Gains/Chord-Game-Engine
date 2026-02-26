@@ -18,6 +18,7 @@ add_library(engine STATIC
     WindowGLFW.cpp
     vk_initializers.cpp
     vk_images.cpp
+    vk_pipelines.cpp
 )
 
 
@@ -48,3 +49,34 @@ target_link_libraries(engine
         glfw
         ${VulkanLib}   # cross-platform Vulkan library
 )
+
+# Get all compute shaders in SHADER_DIR
+file(GLOB ALL_SHADERS "${SHADER_DIR}/*.comp")
+
+# List to store output SPIR-V files
+set(COMPILED_SHADERS "")
+
+foreach(SHADER_FILE IN LISTS ALL_SHADERS)
+    # Get the file name only (e.g., gradient.comp)
+    get_filename_component(SHADER_NAME ${SHADER_FILE} NAME)
+
+    # Output SPIR-V path (same folder, same name, .spv)
+    set(SPIRV_FILE "${SHADER_DIR}/${SHADER_NAME}.spv")
+
+    add_custom_command(
+        OUTPUT "${SPIRV_FILE}"
+        COMMAND glslc -c "${SHADER_FILE}" -o "${SPIRV_FILE}"
+        DEPENDS "${SHADER_FILE}"
+        COMMENT "Compiling shader ${SHADER_NAME}"
+        VERBATIM
+    )
+
+    # Add this SPIR-V file to the list of compiled shaders
+    list(APPEND COMPILED_SHADERS "${SPIRV_FILE}")
+endforeach()
+
+# Custom target that builds all shaders
+add_custom_target(engine_shaders ALL DEPENDS ${COMPILED_SHADERS})
+
+# Make engine depend on the shaders
+add_dependencies(engine engine_shaders)

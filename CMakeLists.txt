@@ -55,3 +55,8 @@ FetchContent_MakeAvailable(vkbootstrap)
 # ---------------------
 add_subdirectory(src/engine)
 add_subdirectory(src/editor)
+
+# ---------------------
+# Shaders
+# ---------------------
+set(SHADER_DIR "${CMAKE_SOURCE_DIR}/shaders" CACHE PATH "Shader directory")
