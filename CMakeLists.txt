@@ -20,6 +20,9 @@ if(NOT DEFINED VulkanSdkDir)
     message(FATAL_ERROR "You must set -DVulkanSdkDir=<path to VulkanSDK>")
 endif()
 
+set(Vulkan_DIR "${VulkanSdkDir}/lib/cmake/Vulkan")
+find_package(Vulkan REQUIRED)
+
 # ---------------------
 # GLFW
 # ---------------------
@@ -49,6 +52,57 @@ FetchContent_Declare(
     GIT_TAG main
 )
 FetchContent_MakeAvailable(vkbootstrap)
+
+# ---------------------
+# ImGui
+# ---------------------
+include(FetchContent)
+
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.92.6-docking
+    GIT_SHALLOW FALSE
+)
+
+# Manual populate
+FetchContent_GetProperties(imgui)
+if(NOT imgui_POPULATED)
+    message(STATUS "Cloning ImGui v1.92.6-docking...")
+    FetchContent_Populate(imgui)
+endif()
+
+# Define the library manually
+add_library(imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+)
+
+target_include_directories(imgui PUBLIC
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+)
+
+target_link_libraries(imgui PUBLIC
+    glfw
+    Vulkan::Vulkan
+)
+
+# ---------------------
+# fastgltf
+# ---------------------
+FetchContent_Declare(
+    fastgltf
+    GIT_REPOSITORY https://github.com/spnda/fastgltf.git
+    GIT_TAG v0.9.0
+)
+
+FetchContent_MakeAvailable(fastgltf)
 
 # ---------------------
 # Add engine + editor

@@ -11,6 +11,7 @@
 #include <array>
 #include <functional>
 #include <deque>
+#include <iostream>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
@@ -139,7 +140,7 @@ struct Node : public IRenderable {
     do {                                                    \
         VkResult err = x;                                   \
         if(err) {                                          \
-            std::cerr << "Detected Vulkan error: "         \
+            std::cout << "Detected Vulkan error: "         \
                       << string_VkResult(err) << "\n";     \
         }                                                   \
     } while(0)

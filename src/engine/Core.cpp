@@ -7,6 +7,17 @@
 #include "vk_images.h"
 #include "vk_pipelines.h"
 
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+#include <fastgltf/glm_element_traits.hpp>
+#include <fastgltf/core.hpp>
+#include <fastgltf/tools.hpp>
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #define VMA_IMPLEMENTATION
@@ -125,10 +136,34 @@ namespace Engine {
 
         VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
 
+        // //add to deletion queues
+        // _mainDeletionQueue.push_function([this]() {
+        //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
+        //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
+        // });
+
+        _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
+        _depthImage.imageExtent = drawImageExtent;
+        VkImageUsageFlags depthImageUsages{};
+        depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+        VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
+
+        //allocate and create the image
+        vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
+
+        //build a image-view for the draw image to use for rendering
+        VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+        VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
+
         //add to deletion queues
         _mainDeletionQueue.push_function([this]() {
             vkDestroyImageView(_device, _drawImage.imageView, nullptr);
             vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
+
+            vkDestroyImageView(_device, _depthImage.imageView, nullptr);
+            vmaDestroyImage(_allocator, _depthImage.image, _depthImage.allocation);
         });
 
     }
@@ -147,6 +182,17 @@ namespace Engine {
 
             VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_frames[i]._mainCommandBuffer));
         }
+
+        VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_immCommandPool));
+
+        // allocate the command buffer for immediate submits
+        VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_immCommandPool, 1);
+
+        VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_immCommandBuffer));
+
+        _mainDeletionQueue.push_function([this]() { 
+            vkDestroyCommandPool(_device, _immCommandPool, nullptr);
+        });
     }
 
     void Core::InitSyncStructures() {
@@ -169,6 +215,11 @@ namespace Engine {
         for (int i = 0; i < _swapchainImages.size(); i++) {
             VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_renderFinishedSemaphores[i]));
         }
+
+        VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_immFence));
+        _mainDeletionQueue.push_function([this]() { 
+            vkDestroyFence(_device, _immFence, nullptr); 
+        });
     }
 
     void Core::CreateSwapchain(uint32_t width, uint32_t height) {
@@ -232,6 +283,8 @@ namespace Engine {
     void Core::InitPipelines()
     {
         InitBackgroundPipelines();
+        InitTrianglePipeline();
+        InitMeshPipeline();
     }
 
     void Core::InitBackgroundPipelines()
@@ -242,9 +295,23 @@ namespace Engine {
         computeLayout.pSetLayouts = &_drawImageDescriptorLayout;
         computeLayout.setLayoutCount = 1;
 
+        VkPushConstantRange pushConstant{};
+        pushConstant.offset = 0;
+        pushConstant.size = sizeof(ComputePushConstants) ;
+        pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+        computeLayout.pPushConstantRanges = &pushConstant;
+        computeLayout.pushConstantRangeCount = 1;
+
         VK_CHECK(vkCreatePipelineLayout(_device, &computeLayout, nullptr, &_gradientPipelineLayout));
-        VkShaderModule computeDrawShader;
-        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\gradient.comp.spv", _device, &computeDrawShader)) {
+
+        VkShaderModule gradientShader;
+        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\gradient_color.comp.spv", _device, &gradientShader)) {
+            ENGINE_LOG_ERROR("Error when building the compute shader");
+        }
+
+        VkShaderModule skyShader;
+        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\sky.comp.spv", _device, &skyShader)) {
             ENGINE_LOG_ERROR("Error when building the compute shader");
         }
 
@@ -252,7 +319,7 @@ namespace Engine {
         stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         stageinfo.pNext = nullptr;
         stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-        stageinfo.module = computeDrawShader;
+        stageinfo.module = gradientShader;
         stageinfo.pName = "main";
 
         VkComputePipelineCreateInfo computePipelineCreateInfo{};
@@ -260,15 +327,46 @@ namespace Engine {
         computePipelineCreateInfo.pNext = nullptr;
         computePipelineCreateInfo.layout = _gradientPipelineLayout;
         computePipelineCreateInfo.stage = stageinfo;
-        
-        VK_CHECK(vkCreateComputePipelines(_device,VK_NULL_HANDLE,1,&computePipelineCreateInfo, nullptr, &_gradientPipeline));
 
-        vkDestroyShaderModule(_device, computeDrawShader, nullptr);
+        ComputeEffect gradient;
+        gradient.layout = _gradientPipelineLayout;
+        gradient.name = "gradient";
+        gradient.data = {};
+
+        //default colors
+        gradient.data.data1 = glm::vec4(1, 0, 0, 1);
+        gradient.data.data2 = glm::vec4(0, 0, 1, 1);
+                
+        VK_CHECK(vkCreateComputePipelines(_device,VK_NULL_HANDLE,1,&computePipelineCreateInfo, nullptr, &gradient.pipeline));
+
+        //change the shader module only to create the sky shader
+        computePipelineCreateInfo.stage.module = skyShader;
+
+        ComputeEffect sky;
+        sky.layout = _gradientPipelineLayout;
+        sky.name = "sky";
+        sky.data = {};
+        //default sky parameters
+        sky.data.data1 = glm::vec4(0.1, 0.2, 0.4 ,0.97);
+
+        VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &sky.pipeline));
+
+        _backgroundEffects.push_back(gradient);
+        _backgroundEffects.push_back(sky);
+
+
+        vkDestroyShaderModule(_device, gradientShader, nullptr);
+        vkDestroyShaderModule(_device, skyShader, nullptr);
         
-        _mainDeletionQueue.push_function([&]() {
-            vkDestroyPipelineLayout(_device, _gradientPipelineLayout, nullptr);
-            vkDestroyPipeline(_device, _gradientPipeline, nullptr);
-		});
+        VkPipeline gradientPipeline = gradient.pipeline;
+        VkPipeline skyPipeline = sky.pipeline;
+        VkPipelineLayout layout = _gradientPipelineLayout;
+
+        _mainDeletionQueue.push_function([this, gradientPipeline, skyPipeline, layout]() {
+            vkDestroyPipeline(_device, gradientPipeline, nullptr);
+            vkDestroyPipeline(_device, skyPipeline, nullptr);
+            vkDestroyPipelineLayout(_device, layout, nullptr);
+        });
     }
 
     void Core::InitDescriptors()
@@ -315,6 +413,81 @@ namespace Engine {
         });
     }
 
+    AllocatedBuffer Core::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
+    {
+        // allocate buffer
+        VkBufferCreateInfo bufferInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        bufferInfo.pNext = nullptr;
+        bufferInfo.size = allocSize;
+
+        bufferInfo.usage = usage;
+
+        VmaAllocationCreateInfo vmaallocInfo = {};
+        vmaallocInfo.usage = memoryUsage;
+        vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        AllocatedBuffer newBuffer;
+
+        // allocate the buffer
+        VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation,
+            &newBuffer.info));
+
+        return newBuffer;
+    }
+
+    void Core::DestroyBuffer(const AllocatedBuffer &buffer)
+    {
+        vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
+    }
+
+    GPUMeshBuffers Core::UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices)
+    {
+        const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
+        const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
+
+        GPUMeshBuffers newSurface;
+
+        //create vertex buffer
+        newSurface.vertexBuffer = CreateBuffer(vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY);
+
+        //find the adress of the vertex buffer
+        VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = newSurface.vertexBuffer.buffer };
+        newSurface.vertexBufferAddress = vkGetBufferDeviceAddress(_device, &deviceAdressInfo);
+
+        //create index buffer
+        newSurface.indexBuffer = CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY);
+
+        AllocatedBuffer staging = CreateBuffer(vertexBufferSize + indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+
+        void* data = staging.allocation->GetMappedData();
+
+        // copy vertex buffer
+        memcpy(data, vertices.data(), vertexBufferSize);
+        // copy index buffer
+        memcpy((char*)data + vertexBufferSize, indices.data(), indexBufferSize);
+
+        ImmediateSubmit([&](VkCommandBuffer cmd) {
+            VkBufferCopy vertexCopy{ 0 };
+            vertexCopy.dstOffset = 0;
+            vertexCopy.srcOffset = 0;
+            vertexCopy.size = vertexBufferSize;
+
+            vkCmdCopyBuffer(cmd, staging.buffer, newSurface.vertexBuffer.buffer, 1, &vertexCopy);
+
+            VkBufferCopy indexCopy{ 0 };
+            indexCopy.dstOffset = 0;
+            indexCopy.srcOffset = vertexBufferSize;
+            indexCopy.size = indexBufferSize;
+
+            vkCmdCopyBuffer(cmd, staging.buffer, newSurface.indexBuffer.buffer, 1, &indexCopy);
+        });
+
+        DestroyBuffer(staging);
+
+        return newSurface;
+    }
+
     void Core::Draw()
     {
         FrameData& frameData = GetCurrentFrame();
@@ -348,18 +521,26 @@ namespace Engine {
         // transition our main draw image into general layout so we can write into it
         // we will overwrite it all so we dont care about what was the older layout
         vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-
         DrawBackground(cmd);
+        
+        vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        vkutil::transition_image(cmd, _depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+        DrawGeometry(cmd);
 
         //transition the draw image and the swapchain image into their correct transfer layouts
-        vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
         // execute a copy from the draw image into the swapchain
         vkutil::copy_image_to_image(cmd, _drawImage.image, _swapchainImages[swapchainImageIndex], _drawExtent, _swapchainExtent);
 
-        // set swapchain image layout to Present so we can show it on the screen
-        vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        // set swapchain image layout to Attachment Optimal so we can draw it
+        vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+        //draw imgui into the swapchain image
+        DrawImGui(cmd,  _swapchainImageViews[swapchainImageIndex]);
+
+        // set swapchain image layout to Present so we can draw it
+        vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         //finalize the command buffer (we can no longer add commands, but it can now be executed)
         VK_CHECK(vkEndCommandBuffer(cmd));
@@ -404,6 +585,46 @@ namespace Engine {
         _frameNumber++;
     }
 
+    void Core::DrawUi()
+    {
+		if (ImGui::Begin("Background")) {
+
+        ComputeEffect& selected = _backgroundEffects[_currentBackgroundEffect];
+
+        // Header
+        ImGui::TextDisabled("Active Effect");
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f), "%s", selected.name);
+
+        ImGui::Separator();
+
+        // Effect selection
+        ImGui::PushItemWidth(-1);
+        ImGui::SliderInt(
+            "##EffectIndex",
+            &_currentBackgroundEffect,
+            0,
+            (int)_backgroundEffects.size() - 1
+        );
+        ImGui::PopItemWidth();
+
+        ImGui::Spacing();
+
+        // Parameters section
+        ImGui::TextDisabled("Parameters");
+        ImGui::Indent();
+
+        ImGui::DragFloat4("Data 1", &selected.data.data1.x, 0.01f);
+        ImGui::DragFloat4("Data 2", &selected.data.data2.x, 0.01f);
+        ImGui::DragFloat4("Data 3", &selected.data.data3.x, 0.01f);
+        ImGui::DragFloat4("Data 4", &selected.data.data4.x, 0.01f);
+
+        ImGui::Unindent();
+    }
+    ImGui::End();
+
+    }
+
     void Core::DrawBackground(VkCommandBuffer cmd)
     {
 
@@ -417,17 +638,509 @@ namespace Engine {
         // //clear image
         // vkCmdClearColorImage(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
         // bind the gradient drawing compute pipeline
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
+
+
+        // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
+
+        // // bind the descriptor set containing the draw image for the compute pipeline
+        // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
+
+        // // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+        // vkCmdDispatch(cmd, std::ceil(_drawExtent.width / 16.0), std::ceil(_drawExtent.height / 16.0), 1);
+
+        // bind the gradient drawing compute pipeline
+
+        // ComputeEffect& effect = _backgroundEffects[1];
+        // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline);
+        // //vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
+
+        // // bind the descriptor set containing the draw image for the compute pipeline
+        // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
+
+        // ComputePushConstants pc;
+
+        // pc.data1 = glm::vec4(1, 0, 0, 1);
+        // pc.data2 = glm::vec4(0, 0, 1, 1);
+
+        // vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &pc);
+        // // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+        // vkCmdDispatch(cmd, std::ceil(_drawExtent.width / 16.0), std::ceil(_drawExtent.height / 16.0), 1);
+
+        ComputeEffect& effect = _backgroundEffects[_currentBackgroundEffect];
+
+        // bind the background compute pipeline
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline);
 
         // bind the descriptor set containing the draw image for the compute pipeline
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
+        if (_currentBackgroundEffect == 0)
+        {
+            effect.data.data1.x = _frameNumber / 100.0f;
+        }
 
+        vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &effect.data);
         // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
         vkCmdDispatch(cmd, std::ceil(_drawExtent.width / 16.0), std::ceil(_drawExtent.height / 16.0), 1);
     }
 
-    void Core::Init()
+    void Core::DrawGeometry(VkCommandBuffer cmd)
     {
+        //begin a render pass  connected to our draw image
+        VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
+        VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+        VkRenderingInfo renderInfo = vkinit::rendering_info(_drawExtent, &colorAttachment, &depthAttachment);
+        
+        vkCmdBeginRendering(cmd, &renderInfo);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+
+        //set dynamic viewport and scissor
+        VkViewport viewport = {};
+        viewport.x = 0;
+        viewport.y = 0;
+        viewport.width = _drawExtent.width;
+        viewport.height = _drawExtent.height;
+        viewport.minDepth = 0.f;
+        viewport.maxDepth = 1.f;
+
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+        VkRect2D scissor = {};
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        scissor.extent.width = _drawExtent.width;
+        scissor.extent.height = _drawExtent.height;
+
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+        //launch a draw command to draw 3 vertices
+        vkCmdDraw(cmd, 3, 1, 0, 0);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+
+        GPUDrawPushConstants push_constants;
+        push_constants.worldMatrix = glm::mat4{ 1.f };
+        push_constants.vertexBuffer = rectangle.vertexBufferAddress;
+
+        vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+        vkCmdBindIndexBuffer(cmd, rectangle.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+
+        push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+        
+        //glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+        glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0, -1, -5});
+        // // camera projection
+        glm::mat4 projection = glm::perspective(
+            glm::radians(70.f),
+            (float)_drawExtent.width / (float)_drawExtent.height,
+            0.1f,
+            10000.f
+        );
+
+        // // invert the Y direction on projection matrix so that we are more similar
+        // // to opengl and gltf axis
+        projection[1][1] *= -1;
+
+	    push_constants.worldMatrix = projection * view;
+
+        vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+        
+        vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+
+        vkCmdEndRendering(cmd);
+    }
+
+    void Core::DrawImGui(VkCommandBuffer cmd, VkImageView targetImageView)
+    {
+        VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        VkRenderingInfo renderInfo = vkinit::rendering_info(_swapchainExtent, &colorAttachment, nullptr);
+
+        vkCmdBeginRendering(cmd, &renderInfo);
+
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+
+        vkCmdEndRendering(cmd);
+    }
+
+    void Core::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)> &&function)
+    {
+        VK_CHECK(vkResetFences(_device, 1, &_immFence));
+        VK_CHECK(vkResetCommandBuffer(_immCommandBuffer, 0));
+
+        VkCommandBuffer cmd = _immCommandBuffer;
+
+        VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+        VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+        function(cmd);
+
+        VK_CHECK(vkEndCommandBuffer(cmd));
+
+        VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
+        VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo, nullptr, nullptr);
+
+        // submit command buffer to the queue and execute it.
+        //  _renderFence will now block until the graphic commands finish execution
+        VK_CHECK(vkQueueSubmit2(_graphicsQueue, 1, &submit, _immFence));
+
+        VK_CHECK(vkWaitForFences(_device, 1, &_immFence, true, 9999999999));
+    }
+
+    void Core::InitImgui()
+    {
+        // 1: create descriptor pool for IMGUI
+        //  the size of the pool is very oversize, but it's copied from imgui demo
+        //  itself.
+        VkDescriptorPoolSize pool_sizes[] = { { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+            { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 } };
+
+        VkDescriptorPoolCreateInfo pool_info = {};
+        pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        pool_info.maxSets = 1000;
+        pool_info.poolSizeCount = (uint32_t)std::size(pool_sizes);
+        pool_info.pPoolSizes = pool_sizes;
+
+        VkDescriptorPool imguiPool;
+        VK_CHECK(vkCreateDescriptorPool(_device, &pool_info, nullptr, &imguiPool));
+
+        // 2: initialize imgui library
+
+        // this initializes the core structures of imgui
+        ImGui::CreateContext();
+        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+        // this initializes imgui for SDL
+        ImGui_ImplGlfw_InitForVulkan(_window->GetNativeHandle(), true);
+
+        // this initializes imgui for Vulkan
+        ImGui_ImplVulkan_InitInfo init_info = {};
+        init_info.Instance = _instance;
+        init_info.PhysicalDevice = _chosenGPU;
+        init_info.Device = _device;
+        init_info.Queue = _graphicsQueue;
+        init_info.DescriptorPool = imguiPool;
+        init_info.MinImageCount = 3;
+        init_info.ImageCount = 3;
+        init_info.UseDynamicRendering = true;
+
+        //dynamic rendering parameters for imgui to use
+
+        init_info.PipelineInfoMain.PipelineRenderingCreateInfo = {.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+        init_info.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+        init_info.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = &_swapchainImageFormat;
+        
+
+        init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+
+        ImGui_ImplVulkan_Init(&init_info);
+
+        //ImGui_ImplVulkan_CreateFontsTexture();
+
+        // add the destroy the imgui created structures
+        _mainDeletionQueue.push_function([=, this]() {
+            ImGui_ImplVulkan_Shutdown();
+            vkDestroyDescriptorPool(_device, imguiPool, nullptr);
+        });
+    }
+
+    void Core::InitTrianglePipeline()
+    {
+        VkShaderModule triangleFragShader;
+        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.frag.spv", _device, &triangleFragShader)) {
+            ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
+        }
+
+        VkShaderModule triangleVertexShader;
+        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.vert.spv", _device, &triangleVertexShader)) {
+            ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
+        }
+        
+        //build the pipeline layout that controls the inputs/outputs of the shader
+        //we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
+        VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+        VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &_trianglePipelineLayout));
+
+        PipelineBuilder pipelineBuilder;
+
+        //use the triangle layout we created
+        pipelineBuilder._pipelineLayout = _trianglePipelineLayout;
+        //connecting the vertex and pixel shaders to the pipeline
+        pipelineBuilder.set_shaders(triangleVertexShader, triangleFragShader);
+        //it will draw triangles
+        pipelineBuilder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        //filled triangles
+        pipelineBuilder.set_polygon_mode(VK_POLYGON_MODE_FILL);
+        //no backface culling
+        pipelineBuilder.set_cull_mode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+        //no multisampling
+        pipelineBuilder.set_multisampling_none();
+        //no blending
+        pipelineBuilder.disable_blending();
+        //no depth testing
+        //pipelineBuilder.disable_depthtest();
+        pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
+        //connect the image format we will draw into, from draw image
+
+        //connect the image format we will draw into, from draw image
+        pipelineBuilder.set_color_attachment_format(_drawImage.imageFormat);
+        pipelineBuilder.set_depth_format(_depthImage.imageFormat);
+
+        //finally build the pipeline
+        _trianglePipeline = pipelineBuilder.build_pipeline(_device);
+
+        //clean structures
+        vkDestroyShaderModule(_device, triangleFragShader, nullptr);
+        vkDestroyShaderModule(_device, triangleVertexShader, nullptr);
+
+        _mainDeletionQueue.push_function([&]() {
+            vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
+            vkDestroyPipeline(_device, _trianglePipeline, nullptr);
+        });
+    }
+
+    void Core::InitMeshPipeline()
+    {
+        VkShaderModule triangleFragShader;
+        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.frag.spv", _device, &triangleFragShader))
+            ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
+
+        VkShaderModule triangleVertexShader;
+        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle_mesh.vert.spv", _device, &triangleVertexShader))
+            ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
+
+        VkPushConstantRange bufferRange{};
+        bufferRange.offset = 0;
+        bufferRange.size = sizeof(GPUDrawPushConstants);
+        bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+        pipeline_layout_info.pPushConstantRanges = &bufferRange;
+        pipeline_layout_info.pushConstantRangeCount = 1;
+
+        VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &_meshPipelineLayout));
+
+        PipelineBuilder pipelineBuilder;
+
+        //use the triangle layout we created
+        pipelineBuilder._pipelineLayout = _meshPipelineLayout;
+        //connecting the vertex and pixel shaders to the pipeline
+        pipelineBuilder.set_shaders(triangleVertexShader, triangleFragShader);
+        //it will draw triangles
+        pipelineBuilder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        //filled triangles
+        pipelineBuilder.set_polygon_mode(VK_POLYGON_MODE_FILL);
+        //no backface culling
+        pipelineBuilder.set_cull_mode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+        //no multisampling
+        pipelineBuilder.set_multisampling_none();
+        //no blending
+        pipelineBuilder.disable_blending();
+
+        pipelineBuilder.disable_depthtest();
+
+        //connect the image format we will draw into, from draw image
+        pipelineBuilder.set_color_attachment_format(_drawImage.imageFormat);
+        pipelineBuilder.set_depth_format(VK_FORMAT_UNDEFINED);
+
+        //finally build the pipeline
+        _meshPipeline = pipelineBuilder.build_pipeline(_device);
+
+        //clean structures
+        vkDestroyShaderModule(_device, triangleFragShader, nullptr);
+        vkDestroyShaderModule(_device, triangleVertexShader, nullptr);
+
+        _mainDeletionQueue.push_function([&]() {
+            vkDestroyPipelineLayout(_device, _meshPipelineLayout, nullptr);
+            vkDestroyPipeline(_device, _meshPipeline, nullptr);
+        });
+    }
+
+    void Core::InitDefaultData()
+    {
+        std::array<Vertex,4> rect_vertices;
+
+        rect_vertices[0].position = {0.5,-0.5, 0};
+        rect_vertices[1].position = {0.5,0.5, 0};
+        rect_vertices[2].position = {-0.5,-0.5, 0};
+        rect_vertices[3].position = {-0.5,0.5, 0};
+
+        rect_vertices[0].color = {0,0, 0,1};
+        rect_vertices[1].color = { 0.5,0.5,0.5 ,1};
+        rect_vertices[2].color = { 1,0, 0,1 };
+        rect_vertices[3].color = { 0,1, 0,1 };
+
+        std::array<uint32_t,6> rect_indices;
+
+        rect_indices[0] = 0;
+        rect_indices[1] = 1;
+        rect_indices[2] = 2;
+
+        rect_indices[3] = 2;
+        rect_indices[4] = 1;
+        rect_indices[5] = 3;
+
+        rectangle = UploadMesh(rect_indices,rect_vertices);
+
+        //delete the rectangle data on engine shutdown
+        _mainDeletionQueue.push_function([&](){
+            DestroyBuffer(rectangle.indexBuffer);
+            DestroyBuffer(rectangle.vertexBuffer);
+        });
+
+        testMeshes = LoadGltfMeshes(this,"C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\assets\\basicmesh.glb").value();
+    }
+
+    std::optional<std::vector<std::shared_ptr<MeshAsset>>> Core::LoadGltfMeshes(Core *engine, std::filesystem::path filePath)
+    {
+        //ENGINE_LOG_INFO("Loading GLTF: %s", filePath);
+
+        auto dataResult = fastgltf::GltfDataBuffer::FromPath(filePath);
+        if (!dataResult) {
+            //ENGINE_LOG_INFO("Failed to load glTF file");
+            return std::nullopt;
+        }
+        fastgltf::GltfDataBuffer data = std::move(dataResult.get());
+
+        constexpr auto gltfOptions =
+            fastgltf::Options::LoadExternalBuffers;
+
+        fastgltf::Asset gltf;
+        fastgltf::Parser parser;
+        auto load = parser.loadGltfBinary(data, filePath.parent_path(), gltfOptions);
+
+        if (load) {
+            gltf = std::move(load.get());
+        } else {
+            //ENGINE_LOG_INFO("Failed to load glTF: %s \n", fastgltf::to_underlying(load.error()));
+            return std::nullopt;
+        }
+
+        std::vector<std::shared_ptr<MeshAsset>> meshes;
+        std::vector<uint32_t> indices;
+        std::vector<Vertex> vertices;
+
+        for (fastgltf::Mesh& mesh : gltf.meshes) {
+            MeshAsset newMesh;
+            newMesh.name = mesh.name;
+
+            // clear the mesh arrays each mesh, we dont want to merge them by error
+            indices.clear();
+            vertices.clear();
+            
+            for (auto&& p : mesh.primitives) {
+                GeoSurface newSurface;
+                newSurface.startIndex = (uint32_t)indices.size();
+                newSurface.count = (uint32_t)gltf.accessors[p.indicesAccessor.value()].count;
+
+                size_t initial_vtx = vertices.size();
+                // load indexes
+                {
+                    fastgltf::Accessor& indexaccessor = gltf.accessors[p.indicesAccessor.value()];
+                    indices.reserve(indices.size() + indexaccessor.count);
+
+                    fastgltf::iterateAccessor<std::uint32_t>(gltf, indexaccessor,
+                        [&](std::uint32_t idx) {
+                            indices.push_back(idx + initial_vtx);
+                        });
+                }
+
+                // load vertex positions
+                {
+                    fastgltf::Attribute* positionAttr = p.findAttribute("POSITION");
+                    if (!positionAttr) {
+                        continue;
+                    }
+
+                    auto& positionAccessor = gltf.accessors[positionAttr->accessorIndex];
+                    vertices.resize(vertices.size() + positionAccessor.count);
+
+                    fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, positionAccessor,
+                        [&](glm::vec3 v, size_t index) {
+                            Vertex newvtx;
+                            newvtx.position = v;
+                            newvtx.normal = { 1, 0, 0 };
+                            newvtx.color = glm::vec4 { 1.f };
+                            newvtx.uv_x = 0;
+                            newvtx.uv_y = 0;
+                            vertices[initial_vtx + index] = newvtx;
+                        });
+                }
+
+                // load vertex normals
+                auto normalsAttr = p.findAttribute("NORMAL");
+                if (normalsAttr) {
+                    auto& normalAccessor = gltf.accessors[normalsAttr->accessorIndex];
+
+                    fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, normalAccessor,
+                        [&](glm::vec3 v, size_t index) {
+                            vertices[initial_vtx + index].normal = v;
+                        });
+                }
+
+                 // load UVs
+                auto uvsAttr = p.findAttribute("TEXCOORD_0");
+                if (uvsAttr) {
+                    auto& uvAccessor = gltf.accessors[uvsAttr->accessorIndex];
+
+                    fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, uvAccessor,
+                        [&](glm::vec2 v, size_t index) {
+                            vertices[initial_vtx + index].uv_x = v.x;
+                            vertices[initial_vtx + index].uv_y = v.y;
+                        });
+                }
+                // load vertex colors
+                auto colorsAttr = p.findAttribute("COLOR_0");
+                if (colorsAttr) {
+                    auto& colorsAccessor = gltf.accessors[colorsAttr->accessorIndex];
+
+                    if (colorsAccessor.type == fastgltf::AccessorType::Vec4) {
+                        fastgltf::iterateAccessorWithIndex<glm::vec4>(gltf, colorsAccessor,
+                            [&](glm::vec4 v, size_t index) {
+                                vertices[initial_vtx + index].color = v;
+                            });
+                    } else if (colorsAccessor.type == fastgltf::AccessorType::Vec3) {
+                        fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, colorsAccessor,
+                            [&](glm::vec3 v, size_t index) {
+                                vertices[initial_vtx + index].color = glm::vec4(v, 1.0f);
+                            });
+                    } else {
+                        //ENGINE_LOG_WARN("Unsupported vertex color type in mesh %s", mesh.name.c_str());
+                    }
+                }
+                newMesh.surfaces.push_back(newSurface);
+            }
+
+            // display the vertex normals
+            constexpr bool OverrideColors = true;
+            if (OverrideColors) {
+                for (Vertex& vtx : vertices) {
+                    vtx.color = glm::vec4(vtx.normal, 1.f);
+                }
+            }
+            newMesh.meshBuffers = engine->UploadMesh(indices, vertices);
+            meshes.emplace_back(std::make_shared<MeshAsset>(std::move(newMesh)));
+        }
+        return meshes;
+    }
+
+    void Core::Init() {
 #ifdef DEBUG
         ENGINE_LOG_INFO("Engine initializing in DEBUG mode!");
     #else
@@ -437,10 +1150,12 @@ namespace Engine {
         InitWindow();
         InitVulkan();
         InitSwapchain();
+        InitImgui();
         InitCommands();
         InitSyncStructures();
         InitDescriptors();
         InitPipelines();
+        InitDefaultData();
 
         //everything went fine
         _isInitialized = true;
@@ -478,6 +1193,23 @@ namespace Engine {
                 }
                 continue;
             }
+            // imgui new frame
+            ImGui_ImplVulkan_NewFrame();
+            ImGui_ImplGlfw_NewFrame();
+            ImGui::NewFrame();
+            ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+
+            //some imgui UI to test
+            //ImGui::ShowDemoWindow();
+           // ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+
+            //make imgui calculate internal draw structures
+            //ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+            //ImGui::End();
+            DrawUi();
+            ImGui::Render();
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
             Draw();
         }
         ENGINE_LOG_INFO("Engine Shutting Down.");
@@ -521,6 +1253,14 @@ namespace Engine {
         // 6 destroy debug messenger
         vkb::destroy_debug_utils_messenger(_instance, _debugMessenger);
         vkDestroyInstance(_instance, nullptr);
+        
+
+        for (auto& mesh : testMeshes) {
+            DestroyBuffer(mesh->meshBuffers.indexBuffer);
+            DestroyBuffer(mesh->meshBuffers.vertexBuffer);
+        }
+
+        _mainDeletionQueue.flush();
         //vkDestroyShaderModule(_device, computeDrawShader, nullptr);
 
         // 7 shutdown GLFW library

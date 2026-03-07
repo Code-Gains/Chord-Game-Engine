@@ -5,6 +5,7 @@
 #include <functional>
 #include "Log.h"
 #include "WindowGLFW.h"
+#include <filesystem>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnullability-completeness"
@@ -17,6 +18,59 @@
 
 namespace Engine {
 
+
+    struct GeoSurface {
+        uint32_t startIndex;
+        uint32_t count;
+    };
+
+    struct MeshAsset {
+        std::string name;
+    
+        std::vector<GeoSurface> surfaces;
+        GPUMeshBuffers meshBuffers;
+    };
+
+
+    typedef struct VkGraphicsPipelineCreateInfo {
+        VkStructureType                                  sType;
+        const void*                                      pNext;
+        VkPipelineCreateFlags                            flags;
+        uint32_t                                         stageCount;
+        const VkPipelineShaderStageCreateInfo*           pStages;
+        const VkPipelineVertexInputStateCreateInfo*      pVertexInputState;
+        const VkPipelineInputAssemblyStateCreateInfo*    pInputAssemblyState;
+        const VkPipelineTessellationStateCreateInfo*     pTessellationState;
+        const VkPipelineViewportStateCreateInfo*         pViewportState;
+        const VkPipelineRasterizationStateCreateInfo*    pRasterizationState;
+        const VkPipelineMultisampleStateCreateInfo*      pMultisampleState;
+        const VkPipelineDepthStencilStateCreateInfo*     pDepthStencilState;
+        const VkPipelineColorBlendStateCreateInfo*       pColorBlendState;
+        const VkPipelineDynamicStateCreateInfo*          pDynamicState;
+        VkPipelineLayout                                 layout;
+        VkRenderPass                                     renderPass;
+        uint32_t                                         subpass;
+        VkPipeline                                       basePipelineHandle;
+        int32_t                                          basePipelineIndex;
+    } VkGraphicsPipelineCreateInfo;
+    
+
+    struct ComputePushConstants {
+        glm::vec4 data1;
+        glm::vec4 data2;
+        glm::vec4 data3;
+        glm::vec4 data4;
+    };
+
+    struct ComputeEffect {
+        const char* name;
+
+        VkPipeline pipeline;
+        VkPipelineLayout layout;
+
+        ComputePushConstants data;
+    };
+    
     struct DescriptorLayoutBuilder {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
 
@@ -112,19 +166,56 @@ namespace Engine {
         DeletionQueue _mainDeletionQueue;
 
         AllocatedImage _drawImage;
+        AllocatedImage _depthImage;
 	    VkExtent2D _drawExtent;
 
 
         VkDescriptorSet _drawImageDescriptors;
         VkDescriptorSetLayout _drawImageDescriptorLayout;
-        VkPipeline _gradientPipeline;
+        //VkPipeline _gradientPipeline;
 	    VkPipelineLayout _gradientPipelineLayout;
+
+        AllocatedBuffer CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+        void DestroyBuffer(const AllocatedBuffer& buffer);
+        GPUMeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
 
         void Draw();
+        void DrawUi();
 
         // Drawing helpers
         void DrawBackground(VkCommandBuffer cmd);
+        void DrawGeometry(VkCommandBuffer cmd);
+        void DrawImGui(VkCommandBuffer cmd, VkImageView targetImageView);
+
+        // Imgui
+        VkFence _immFence;
+        VkCommandBuffer _immCommandBuffer;
+        VkCommandPool _immCommandPool;
+
+        
+        void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
+
+        void InitImgui();
+
+        // temp
+        std::vector<ComputeEffect> _backgroundEffects;
+        int _currentBackgroundEffect{0};
+        VkPipelineLayout _trianglePipelineLayout;
+        VkPipeline _trianglePipeline;
+
+        void InitTrianglePipeline();
+
+        VkPipelineLayout _meshPipelineLayout;
+        VkPipeline _meshPipeline;
+
+        GPUMeshBuffers rectangle;
+
+        void InitMeshPipeline();
+        void InitDefaultData();
+        std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGltfMeshes(Core* engine, std::filesystem::path filePath);
+        
+        std::vector<std::shared_ptr<MeshAsset>> testMeshes;
 
     public:
         Core() = default;

@@ -19,6 +19,7 @@ add_library(engine STATIC
     vk_initializers.cpp
     vk_images.cpp
     vk_pipelines.cpp
+    vk_descriptors.cpp
 )
 
 
@@ -29,7 +30,6 @@ target_compile_definitions(engine PRIVATE
 # Include engine headers + dependencies
 target_include_directories(engine
     PUBLIC
-        ${VulkanSdkDir}/include         # Vulkan headers
         ${CMAKE_CURRENT_SOURCE_DIR}     # engine headers
         ${glfw_SOURCE_DIR}/include      # GLFW headers
         ${glm_SOURCE_DIR}               # GLM headers
@@ -45,13 +45,19 @@ endif()
 # Link libraries
 target_link_libraries(engine
     PUBLIC
+        Vulkan::Vulkan
         vkbootstrap
         glfw
-        ${VulkanLib}   # cross-platform Vulkan library
+        imgui
+        fastgltf
 )
 
 # Get all compute shaders in SHADER_DIR
-file(GLOB ALL_SHADERS "${SHADER_DIR}/*.comp")
+file(GLOB ALL_SHADERS
+    "${SHADER_DIR}/*.comp"
+    "${SHADER_DIR}/*.vert"
+    "${SHADER_DIR}/*.frag"
+)
 
 # List to store output SPIR-V files
 set(COMPILED_SHADERS "")

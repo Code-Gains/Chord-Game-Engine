@@ -14,7 +14,9 @@ target_include_directories(editor
 )
 
 target_link_libraries(editor
-    PRIVATE engine
+    PRIVATE 
+        engine
+        imgui
 )
 
 
