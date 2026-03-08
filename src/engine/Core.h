@@ -154,6 +154,8 @@ namespace Engine {
         void CleanupSwapchainResources();
 	    void DestroySwapchain();
 
+        void CreateDrawImages(uint32_t width, uint32_t height);
+        void CleanupDrawImages();
         // Graphics
         uint32_t _frameNumber = 0;
         FrameData _frames[FRAME_OVERLAP];

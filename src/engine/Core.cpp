@@ -523,13 +523,15 @@ namespace Engine {
         vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
         DrawBackground(cmd);
         
+        //vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         vkutil::transition_image(cmd, _depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
         DrawGeometry(cmd);
 
         //transition the draw image and the swapchain image into their correct transfer layouts
         vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        //vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vkutil::transition_image(cmd,_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         // execute a copy from the draw image into the swapchain
         vkutil::copy_image_to_image(cmd, _drawImage.image, _swapchainImages[swapchainImageIndex], _drawExtent, _swapchainExtent);
 
@@ -686,7 +688,7 @@ namespace Engine {
     void Core::DrawGeometry(VkCommandBuffer cmd)
     {
         //begin a render pass  connected to our draw image
-        VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
+        VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
         VkRenderingInfo renderInfo = vkinit::rendering_info(_drawExtent, &colorAttachment, &depthAttachment);
@@ -731,7 +733,13 @@ namespace Engine {
         push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
         
         //glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
-        glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0, -1, -5});
+        //glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0, -1, -5});
+
+        glm::mat4 view = glm::lookAt(
+            glm::vec3(1, 1, -5),  // camera position
+            glm::vec3(0, 0, 0),   // look target
+            glm::vec3(0, 1, 0)    // up
+        );
         // // camera projection
         glm::mat4 projection = glm::perspective(
             glm::radians(70.f),
@@ -953,11 +961,12 @@ namespace Engine {
         //no blending
         pipelineBuilder.disable_blending();
 
-        pipelineBuilder.disable_depthtest();
+        //pipelineBuilder.disable_depthtest();
+        pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
         //connect the image format we will draw into, from draw image
         pipelineBuilder.set_color_attachment_format(_drawImage.imageFormat);
-        pipelineBuilder.set_depth_format(VK_FORMAT_UNDEFINED);
+	    pipelineBuilder.set_depth_format(_depthImage.imageFormat);
 
         //finally build the pipeline
         _meshPipeline = pipelineBuilder.build_pipeline(_device);
@@ -1005,6 +1014,14 @@ namespace Engine {
         });
 
         testMeshes = LoadGltfMeshes(this,"C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\assets\\basicmesh.glb").value();
+
+        // destroy mesh buffers on shutdown
+        _mainDeletionQueue.push_function([&]() {
+            for (auto& mesh : testMeshes) {
+                DestroyBuffer(mesh->meshBuffers.vertexBuffer);
+                DestroyBuffer(mesh->meshBuffers.indexBuffer);
+            }
+        });
     }
 
     std::optional<std::vector<std::shared_ptr<MeshAsset>>> Core::LoadGltfMeshes(Core *engine, std::filesystem::path filePath)
@@ -1254,11 +1271,6 @@ namespace Engine {
         vkb::destroy_debug_utils_messenger(_instance, _debugMessenger);
         vkDestroyInstance(_instance, nullptr);
         
-
-        for (auto& mesh : testMeshes) {
-            DestroyBuffer(mesh->meshBuffers.indexBuffer);
-            DestroyBuffer(mesh->meshBuffers.vertexBuffer);
-        }
 
         _mainDeletionQueue.flush();
         //vkDestroyShaderModule(_device, computeDrawShader, nullptr);
