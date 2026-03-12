@@ -22,6 +22,7 @@
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
+#include "vk_descriptors.h"
 #pragma clang diagnostic pop
 
 namespace Engine {
@@ -104,67 +105,68 @@ namespace Engine {
 
     void Core::InitSwapchain() {
         CreateSwapchain(_window->GetWidth(), _window->GetHeight());
-            //draw image size will match the window
-        VkExtent3D drawImageExtent = {
-            static_cast<uint32_t>(_window->GetWidth()),
-            static_cast<uint32_t>(_window->GetHeight()),
-            1
-        };
+        CreateDrawImages(_window->GetWidth(), _window->GetHeight());
+        // //draw image size will match the window
+        // VkExtent3D drawImageExtent = {
+        //     static_cast<uint32_t>(_window->GetWidth()),
+        //     static_cast<uint32_t>(_window->GetHeight()),
+        //     1
+        // };
 
-        //hardcoding the draw format to 32 bit float
-        _drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-        _drawImage.imageExtent = drawImageExtent;
+        // //hardcoding the draw format to 32 bit float
+        // _drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+        // _drawImage.imageExtent = drawImageExtent;
 
-        VkImageUsageFlags drawImageUsages{};
-        drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        // VkImageUsageFlags drawImageUsages{};
+        // drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        // drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        // drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+        // drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-        VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
+        // VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
 
-        //for the draw image, we want to allocate it from gpu local memory
-        VmaAllocationCreateInfo rimg_allocinfo = {};
-        rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        // //for the draw image, we want to allocate it from gpu local memory
+        // VmaAllocationCreateInfo rimg_allocinfo = {};
+        // rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        // rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        //allocate and create the image
-        vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
+        // //allocate and create the image
+        // vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
 
-        //build a image-view for the draw image to use for rendering
-        VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+        // //build a image-view for the draw image to use for rendering
+        // VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
 
-        VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
+        // VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
 
-        // //add to deletion queues
+        // // //add to deletion queues
+        // // _mainDeletionQueue.push_function([this]() {
+        // //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
+        // //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
+        // // });
+
+        // _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
+        // _depthImage.imageExtent = drawImageExtent;
+        // VkImageUsageFlags depthImageUsages{};
+        // depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+        // VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
+
+        // //allocate and create the image
+        // vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
+
+        // //build a image-view for the draw image to use for rendering
+        // VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+        // VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
+
+        //add to deletion queues
         // _mainDeletionQueue.push_function([this]() {
         //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
         //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
+
+        //     vkDestroyImageView(_device, _depthImage.imageView, nullptr);
+        //     vmaDestroyImage(_allocator, _depthImage.image, _depthImage.allocation);
         // });
-
-        _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
-        _depthImage.imageExtent = drawImageExtent;
-        VkImageUsageFlags depthImageUsages{};
-        depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-        VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
-
-        //allocate and create the image
-        vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
-
-        //build a image-view for the draw image to use for rendering
-        VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-        VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
-
-        //add to deletion queues
-        _mainDeletionQueue.push_function([this]() {
-            vkDestroyImageView(_device, _drawImage.imageView, nullptr);
-            vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
-
-            vkDestroyImageView(_device, _depthImage.imageView, nullptr);
-            vmaDestroyImage(_allocator, _depthImage.image, _depthImage.allocation);
-        });
 
     }
 
@@ -249,14 +251,15 @@ namespace Engine {
         vkDeviceWaitIdle(_device);
 
         // Cleanup resources tied to current swapchain
+        
+        CleanupDrawImages();
         CleanupSwapchainResources();
 
         // Create new swapchain
         CreateSwapchain(width, height);
-
-        // Create new swapchain resources
-        //uint32_t imageCount = 0;
-        //vkGetSwapchainImagesKHR
+        CreateDrawImages(width, height);
+        UpdateDrawImageDescriptor();
+        _window->ResetResizedFlag();
     }
 
     void Core::CleanupSwapchainResources() {
@@ -278,6 +281,102 @@ namespace Engine {
         for (int i = 0; i < _swapchainImageViews.size(); i++) {
             vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
         }
+    }
+
+    void Core::UpdateDrawImageDescriptor()
+    {
+        if (_drawImage.imageView == VK_NULL_HANDLE || _drawImageDescriptors == VK_NULL_HANDLE)
+            return; // safe guard if called too early
+
+        // VkDescriptorImageInfo imgInfo{};
+        // imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        // imgInfo.imageView = _drawImage.imageView;
+
+        // VkWriteDescriptorSet drawImageWrite{};
+        // drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        // drawImageWrite.dstSet = _drawImageDescriptors;
+        // drawImageWrite.dstBinding = 0;
+        // drawImageWrite.descriptorCount = 1;
+        // drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        // drawImageWrite.pImageInfo = &imgInfo;
+
+        // vkUpdateDescriptorSets(_device, 1, &drawImageWrite, 0, nullptr);
+        DescriptorWriter writer;
+        writer.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        writer.update_set(_device,_drawImageDescriptors);
+    }
+
+    void Core::CleanupDrawImageDescriptors()
+    {
+        globalDescriptorAllocator.DestroyPool(_device);
+        vkDestroyDescriptorSetLayout(_device, _drawImageDescriptorLayout, nullptr);
+        vkDestroyDescriptorSetLayout(_device, _gpuSceneDataDescriptorLayout , nullptr);
+        vkDestroyDescriptorSetLayout(_device, _singleImageDescriptorLayout , nullptr);
+    }
+
+    void Core::CreateDrawImages(uint32_t width, uint32_t height)
+    {
+        //draw image size will match the window
+        VkExtent3D drawImageExtent = {
+            static_cast<uint32_t>(width),
+            static_cast<uint32_t>(height),
+            1
+        };
+
+        //hardcoding the draw format to 32 bit float
+        _drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+        _drawImage.imageExtent = drawImageExtent;
+
+        VkImageUsageFlags drawImageUsages{};
+        drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+        drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
+
+        //for the draw image, we want to allocate it from gpu local memory
+        VmaAllocationCreateInfo rimg_allocinfo = {};
+        rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        //allocate and create the image
+        vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
+
+        //build a image-view for the draw image to use for rendering
+        VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+
+        VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
+
+        // //add to deletion queues
+        // _mainDeletionQueue.push_function([this]() {
+        //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
+        //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
+        // });
+
+        _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
+        _depthImage.imageExtent = drawImageExtent;
+        VkImageUsageFlags depthImageUsages{};
+        depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+        VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
+
+        //allocate and create the image
+        vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
+
+        //build a image-view for the draw image to use for rendering
+        VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+        VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
+    }
+
+    void Core::CleanupDrawImages()
+    {
+        vkDestroyImageView(_device, _drawImage.imageView, nullptr);
+        vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
+
+        vkDestroyImageView(_device, _depthImage.imageView, nullptr);
+        vmaDestroyImage(_allocator, _depthImage.image, _depthImage.allocation);
     }
 
     void Core::InitPipelines()
@@ -371,46 +470,98 @@ namespace Engine {
 
     void Core::InitDescriptors()
     {
-        //create a descriptor pool that will hold 10 sets with 1 image each
-        std::vector<DescriptorAllocator::PoolSizeRatio> sizes =
-        {
+        // //create a descriptor pool that will hold 10 sets with 1 image each
+        // std::vector<DescriptorAllocator::PoolSizeRatio> sizes =
+        // {
+        //     { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }
+        // };
+
+        // globalDescriptorAllocator.InitPool(_device, 10, sizes);
+
+        // //make the descriptor set layout for our compute draw
+        // {
+        //     DescriptorLayoutBuilder builder;
+        //     builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        //     _drawImageDescriptorLayout = builder.Build(_device, VK_SHADER_STAGE_COMPUTE_BIT);
+        // }
+
+        // //allocate a descriptor set for our draw image
+        // _drawImageDescriptors = globalDescriptorAllocator.Allocate(_device,_drawImageDescriptorLayout);	
+
+        // VkDescriptorImageInfo imgInfo{};
+        // imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        // imgInfo.imageView = _drawImage.imageView;
+        
+        // VkWriteDescriptorSet drawImageWrite = {};
+        // drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        // drawImageWrite.pNext = nullptr;
+        
+        // drawImageWrite.dstBinding = 0;
+        // drawImageWrite.dstSet = _drawImageDescriptors;
+        // drawImageWrite.descriptorCount = 1;
+        // drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        // drawImageWrite.pImageInfo = &imgInfo;
+
+        // vkUpdateDescriptorSets(_device, 1, &drawImageWrite, 0, nullptr);
+
+        // 1. Create the descriptor pool (keep it alive for runtime)
+        std::vector<DescriptorAllocator::PoolSizeRatio> sizes = {
             { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }
         };
-
         globalDescriptorAllocator.InitPool(_device, 10, sizes);
 
-        //make the descriptor set layout for our compute draw
+        // 2. Create the descriptor set layout
         {
             DescriptorLayoutBuilder builder;
             builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
             _drawImageDescriptorLayout = builder.Build(_device, VK_SHADER_STAGE_COMPUTE_BIT);
         }
 
-        //allocate a descriptor set for our draw image
-        _drawImageDescriptors = globalDescriptorAllocator.Allocate(_device,_drawImageDescriptorLayout);	
+        // + add gpu scene data descriptor layout
+        {
+            DescriptorLayoutBuilder builder;
+            builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+            _gpuSceneDataDescriptorLayout = builder.Build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+        }
 
-        VkDescriptorImageInfo imgInfo{};
-        imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imgInfo.imageView = _drawImage.imageView;
-        
-        VkWriteDescriptorSet drawImageWrite = {};
-        drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        drawImageWrite.pNext = nullptr;
-        
-        drawImageWrite.dstBinding = 0;
-        drawImageWrite.dstSet = _drawImageDescriptors;
-        drawImageWrite.descriptorCount = 1;
-        drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        drawImageWrite.pImageInfo = &imgInfo;
+        // +
+        {
+            DescriptorLayoutBuilder builder;
+            builder.AddBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+            _singleImageDescriptorLayout = builder.Build(_device, VK_SHADER_STAGE_FRAGMENT_BIT);
+        }
 
-        vkUpdateDescriptorSets(_device, 1, &drawImageWrite, 0, nullptr);
+        // 3. Allocate the descriptor set
+        _drawImageDescriptors = globalDescriptorAllocator.Allocate(_device, _drawImageDescriptorLayout);
+
+
+        for (int i = 0; i < FRAME_OVERLAP; i++) {
+            // create a descriptor pool
+            std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> frame_sizes = { 
+                { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 },
+                { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
+                { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 },
+                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 },
+            };
+
+            _frames[i]._frameDescriptors = DescriptorAllocatorGrowable{};
+            _frames[i]._frameDescriptors.init(_device, 1000, frame_sizes);
+        
+            _mainDeletionQueue.push_function([&, i]() {
+                _frames[i]._frameDescriptors.destroy_pools(_device);
+            });
+        }
+
+        // 4. Update descriptor set to point to the current draw image
+        UpdateDrawImageDescriptor();
+
+    
 
         //make sure both the descriptor allocator and the new layout get cleaned up properly
-        _mainDeletionQueue.push_function([&]() {
-            globalDescriptorAllocator.DestroyPool(_device);
-
-            vkDestroyDescriptorSetLayout(_device, _drawImageDescriptorLayout, nullptr);
-        });
+        // _mainDeletionQueue.push_function([&]() {
+        //     globalDescriptorAllocator.DestroyPool(_device);
+        //     vkDestroyDescriptorSetLayout(_device, _drawImageDescriptorLayout, nullptr);
+        // });
     }
 
     AllocatedBuffer Core::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
@@ -488,9 +639,91 @@ namespace Engine {
         return newSurface;
     }
 
+    AllocatedImage Core::CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+    {
+        AllocatedImage newImage;
+        newImage.imageFormat = format;
+        newImage.imageExtent = size;
+
+        VkImageCreateInfo img_info = vkinit::image_create_info(format, usage, size);
+        if (mipmapped) {
+            img_info.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(size.width, size.height)))) + 1;
+        }
+
+        // always allocate images on dedicated GPU memory
+        VmaAllocationCreateInfo allocinfo = {};
+        allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        // allocate and create the image
+        VK_CHECK(vmaCreateImage(_allocator, &img_info, &allocinfo, &newImage.image, &newImage.allocation, nullptr));
+
+        // if the format is a depth format, we will need to have it use the correct
+        // aspect flag
+        VkImageAspectFlags aspectFlag = VK_IMAGE_ASPECT_COLOR_BIT;
+        if (format == VK_FORMAT_D32_SFLOAT) {
+            aspectFlag = VK_IMAGE_ASPECT_DEPTH_BIT;
+        }
+
+        // build a image-view for the image
+        VkImageViewCreateInfo view_info = vkinit::imageview_create_info(format, newImage.image, aspectFlag);
+        view_info.subresourceRange.levelCount = img_info.mipLevels;
+
+        VK_CHECK(vkCreateImageView(_device, &view_info, nullptr, &newImage.imageView));
+
+        return newImage;
+    }
+
+    AllocatedImage Core::CreateImage(void *data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+    {
+        size_t data_size = size.depth * size.width * size.height * 4;
+        AllocatedBuffer uploadbuffer = CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+        memcpy(uploadbuffer.info.pMappedData, data, data_size);
+
+        AllocatedImage new_image = CreateImage(size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+
+        ImmediateSubmit([&](VkCommandBuffer cmd) {
+            vkutil::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+            VkBufferImageCopy copyRegion = {};
+            copyRegion.bufferOffset = 0;
+            copyRegion.bufferRowLength = 0;
+            copyRegion.bufferImageHeight = 0;
+
+            copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copyRegion.imageSubresource.mipLevel = 0;
+            copyRegion.imageSubresource.baseArrayLayer = 0;
+            copyRegion.imageSubresource.layerCount = 1;
+            copyRegion.imageExtent = size;
+
+            // copy the buffer into the image
+            vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                &copyRegion);
+
+            vkutil::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            });
+
+        DestroyBuffer(uploadbuffer);
+
+        return new_image;
+    }
+
+    void Core::DestroyImage(const AllocatedImage &img)
+    {
+        vkDestroyImageView(_device, img.imageView, nullptr);
+        vmaDestroyImage(_allocator, img.image, img.allocation);
+    }
+
     void Core::Draw()
     {
         FrameData& frameData = GetCurrentFrame();
+        //wait until the gpu has finished rendering the last frame. Timeout of 1 second
+        VK_CHECK(vkWaitForFences(_device, 1, &GetCurrentFrame()._renderFence, true, 1000000000));
+
+        frameData._deletionQueue.flush();
+        frameData._frameDescriptors.clear_pools(_device);
         // wait until the gpu has finished rendering
         VK_CHECK(vkWaitForFences(_device, 1, &frameData._renderFence, true, UINT64_MAX));
         GetCurrentFrame()._deletionQueue.flush();
@@ -687,6 +920,26 @@ namespace Engine {
 
     void Core::DrawGeometry(VkCommandBuffer cmd)
     {
+        //allocate a new uniform buffer for the scene data
+	    AllocatedBuffer gpuSceneDataBuffer = CreateBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        //add it to the deletion queue of this frame so it gets deleted once its been used
+        GetCurrentFrame()._deletionQueue.push_function([=, this]() {
+            DestroyBuffer(gpuSceneDataBuffer);
+        });
+
+        //write the buffer
+        GPUSceneData* sceneUniformData = (GPUSceneData*)gpuSceneDataBuffer.allocation->GetMappedData();
+        *sceneUniformData = sceneData;
+
+        //create a descriptor set that binds that buffer and update it
+	    VkDescriptorSet globalDescriptor = GetCurrentFrame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
+
+        DescriptorWriter writer;
+        writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        writer.update_set(_device, globalDescriptor);
+
+
+
         //begin a render pass  connected to our draw image
         VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
@@ -721,6 +974,16 @@ namespace Engine {
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
 
+        //bind a texture
+        VkDescriptorSet imageSet = GetCurrentFrame()._frameDescriptors.allocate(_device, _singleImageDescriptorLayout);
+        {
+            DescriptorWriter writer;
+            writer.write_image(0, _errorCheckerboardImage.imageView, _defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+            writer.update_set(_device, imageSet);
+        }
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
+
         GPUDrawPushConstants push_constants;
         push_constants.worldMatrix = glm::mat4{ 1.f };
         push_constants.vertexBuffer = rectangle.vertexBufferAddress;
@@ -728,7 +991,7 @@ namespace Engine {
         vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
         vkCmdBindIndexBuffer(cmd, rectangle.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-        vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+        //vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
 
         push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
         
@@ -755,11 +1018,8 @@ namespace Engine {
 	    push_constants.worldMatrix = projection * view;
 
         vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-        
         vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
         vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
-
         vkCmdEndRendering(cmd);
     }
 
@@ -901,6 +1161,8 @@ namespace Engine {
         pipelineBuilder.set_multisampling_none();
         //no blending
         pipelineBuilder.disable_blending();
+        //pipelineBuilder.enable_blending_additive();
+
         //no depth testing
         //pipelineBuilder.disable_depthtest();
         pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
@@ -926,7 +1188,10 @@ namespace Engine {
     void Core::InitMeshPipeline()
     {
         VkShaderModule triangleFragShader;
-        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.frag.spv", _device, &triangleFragShader))
+        //if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.frag.spv", _device, &triangleFragShader))
+        //    ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
+
+        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\tex_image.frag.spv", _device, &triangleFragShader))
             ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
 
         VkShaderModule triangleVertexShader;
@@ -941,6 +1206,8 @@ namespace Engine {
         VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
         pipeline_layout_info.pPushConstantRanges = &bufferRange;
         pipeline_layout_info.pushConstantRangeCount = 1;
+        pipeline_layout_info.pSetLayouts = &_singleImageDescriptorLayout;
+	    pipeline_layout_info.setLayoutCount = 1;
 
         VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &_meshPipelineLayout));
 
@@ -960,6 +1227,7 @@ namespace Engine {
         pipelineBuilder.set_multisampling_none();
         //no blending
         pipelineBuilder.disable_blending();
+        //pipelineBuilder.enable_blending_additive();
 
         //pipelineBuilder.disable_depthtest();
         pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
@@ -1006,6 +1274,53 @@ namespace Engine {
         rect_indices[5] = 3;
 
         rectangle = UploadMesh(rect_indices,rect_vertices);
+
+        //3 default textures, white, grey, black. 1 pixel each
+        uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
+        _whiteImage = CreateImage((void*)&white, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+
+        uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1));
+        _greyImage = CreateImage((void*)&grey, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+
+        uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
+        _blackImage = CreateImage((void*)&black, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+
+        //checkerboard image
+        uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
+        std::array<uint32_t, 16 *16 > pixels; //for 16x16 checkerboard texture
+        for (int x = 0; x < 16; x++) {
+            for (int y = 0; y < 16; y++) {
+                pixels[y*16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+            }
+        }
+        _errorCheckerboardImage = CreateImage(pixels.data(), VkExtent3D{16, 16, 1}, VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+
+        VkSamplerCreateInfo sampl = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+
+        sampl.magFilter = VK_FILTER_NEAREST;
+        sampl.minFilter = VK_FILTER_NEAREST;
+
+        vkCreateSampler(_device, &sampl, nullptr, &_defaultSamplerNearest);
+
+        sampl.magFilter = VK_FILTER_LINEAR;
+        sampl.minFilter = VK_FILTER_LINEAR;
+        vkCreateSampler(_device, &sampl, nullptr, &_defaultSamplerLinear);
+
+        _mainDeletionQueue.push_function([&](){
+            vkDestroySampler(_device,_defaultSamplerNearest,nullptr);
+            vkDestroySampler(_device,_defaultSamplerLinear,nullptr);
+
+            DestroyImage(_whiteImage);
+            DestroyImage(_greyImage);
+            DestroyImage(_blackImage);
+            DestroyImage(_errorCheckerboardImage);
+        });
+
+
 
         //delete the rectangle data on engine shutdown
         _mainDeletionQueue.push_function([&](){
@@ -1179,7 +1494,7 @@ namespace Engine {
     }
 
     void Core::Run() {
-        constexpr auto targetMinimizedFrameDuration = std::chrono::milliseconds(50); // 20 FPS while minimized
+        constexpr auto targetMinimizedFrameDuration = std::chrono::milliseconds(); // 20 FPS while minimized
         ENGINE_LOG_INFO("Starting Engine Main Loop.");
         bool running = true;
         while (!_window->ShouldClose()) {
@@ -1190,15 +1505,16 @@ namespace Engine {
             if (_window->WasResized()) {
                 uint32_t width = _window->GetWidth();
                 uint32_t height = _window->GetHeight();
-                if (width == 0 || height == 0)
+                if ((_window->GetWidth() == 0 || _window->GetHeight() == 0) || glfwGetWindowAttrib(_window->GetNativeHandle(), GLFW_ICONIFIED)) {
                     _appMinimized = true; // ignore swapchain
+                    //ENGINE_LOG_INFO("minimized");
+                }
                 else {
                     _appMinimized = false;
                     // resize swapchain
                     RecreateSwapchain(width, height);
                 }
             }
-
             if (_appMinimized) {
                 auto frameEndTime = std::chrono::high_resolution_clock::now();
                 auto frameDuration = frameEndTime - frameStartTime;
@@ -1258,10 +1574,12 @@ namespace Engine {
         }
 
         // 3 destroy main deletion queue
+        CleanupDrawImageDescriptors();
+        CleanupDrawImages();
         _mainDeletionQueue.flush();
 
         // 4 destroy swapchain images
-        DestroySwapchain();
+        CleanupSwapchainResources();
 
         // 5 destroy surface and device
         vkDestroySurfaceKHR(_instance, _surface, nullptr);
@@ -1389,6 +1707,14 @@ namespace Engine {
 
     //     VkDescriptorSet ds;
     //     VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &ds));
+
+    void GLTFMetallic_Roughness::BuildPipelines(Core *engine)
+    {
+    }
+
+void GLTFMetallic_Roughness::ClearResources(VkDevice device)
+{
+}
 
     //     return ds;
     // }

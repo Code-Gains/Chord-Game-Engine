@@ -6,6 +6,7 @@
 #include "Log.h"
 #include "WindowGLFW.h"
 #include <filesystem>
+#include "vk_descriptors.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnullability-completeness"
@@ -18,6 +19,42 @@
 
 namespace Engine {
 
+    struct RenderObject {
+        uint32_t indexCount;
+        uint32_t firstIndex;
+        VkBuffer indexBuffer;
+        
+        MaterialInstance* material;
+
+        glm::mat4 transform;
+        VkDeviceAddress vertexBufferAddress;
+    };
+
+    struct MaterialPipeline {
+        VkPipeline pipeline;
+        VkPipelineLayout layout;
+    };
+
+    struct MaterialInstance {
+        MaterialPipeline* pipeline;
+        VkDescriptorSet materialSet;
+        MaterialPass passType;
+    };
+
+    // base class for a renderable dynamic object
+    class IRenderable {
+
+        virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
+    };
+
+    struct GPUSceneData {
+        glm::mat4 view;
+        glm::mat4 proj;
+        glm::mat4 viewproj;
+        glm::vec4 ambientColor;
+        glm::vec4 sunlightDirection; // w for sun power
+        glm::vec4 sunlightColor;
+    };
 
     struct GeoSurface {
         uint32_t startIndex;
@@ -118,8 +155,42 @@ namespace Engine {
         VkCommandBuffer _mainCommandBuffer;
 	    VkFence _renderFence;
         DeletionQueue _deletionQueue;
+        DescriptorAllocatorGrowable _frameDescriptors;
     };
     constexpr unsigned int FRAME_OVERLAP = 2; // Swapchain image count? TODO
+
+
+    class Core;
+    struct GLTFMetallic_Roughness {
+        MaterialPipeline opaquePipeline;
+        MaterialPipeline transparentPipeline;
+
+        VkDescriptorSetLayout materialLayout;
+
+        struct MaterialConstants {
+            glm::vec4 colorFactors;
+            glm::vec4 metal_rough_factors;
+            //padding, we need it anyway for uniform buffers
+            glm::vec4 extra[14];
+        };
+
+        struct MaterialResources {
+            AllocatedImage colorImage;
+            VkSampler colorSampler;
+            AllocatedImage metalRoughImage;
+            VkSampler metalRoughSampler;
+            VkBuffer dataBuffer;
+            uint32_t dataBufferOffset;
+        };
+
+        DescriptorWriter writer;
+
+        void BuildPipelines(Core* engine);
+        void ClearResources(VkDevice device);
+
+        MaterialInstance WriteMaterial(VkDevice device, MaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator);
+    };
+
 
     class Core {
         std::unique_ptr<WindowGLFW> _window;
@@ -138,7 +209,6 @@ namespace Engine {
         VkInstance _instance;// Vulkan library handle
         VkDebugUtilsMessengerEXT _debugMessenger;// Vulkan debug output handle
         VkPhysicalDevice _chosenGPU;// GPU chosen as the default device
-        VkDevice _device; // Vulkan device for commands
         VkSurfaceKHR _surface; // Vulkan window surface
         VkSwapchainKHR _swapchain;
         VkFormat _swapchainImageFormat;
@@ -153,6 +223,10 @@ namespace Engine {
         void RecreateSwapchain(uint32_t width, uint32_t height);
         void CleanupSwapchainResources();
 	    void DestroySwapchain();
+        void UpdateDrawImageDescriptor();
+        void CleanupDrawImageDescriptors();
+
+
 
         void CreateDrawImages(uint32_t width, uint32_t height);
         void CleanupDrawImages();
@@ -167,8 +241,8 @@ namespace Engine {
         uint32_t _graphicsQueueFamily;
         DeletionQueue _mainDeletionQueue;
 
-        AllocatedImage _drawImage;
-        AllocatedImage _depthImage;
+        //AllocatedImage _drawImage;
+        //AllocatedImage _depthImage;
 	    VkExtent2D _drawExtent;
 
 
@@ -180,6 +254,10 @@ namespace Engine {
         AllocatedBuffer CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
         void DestroyBuffer(const AllocatedBuffer& buffer);
         GPUMeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
+
+        AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+        AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+        void DestroyImage(const AllocatedImage& img);
 
 
         void Draw();
@@ -219,6 +297,17 @@ namespace Engine {
         
         std::vector<std::shared_ptr<MeshAsset>> testMeshes;
 
+
+        AllocatedImage _whiteImage;
+        AllocatedImage _blackImage;
+        AllocatedImage _greyImage;
+        AllocatedImage _errorCheckerboardImage;
+
+        VkSampler _defaultSamplerLinear;
+        VkSampler _defaultSamplerNearest;
+
+        VkDescriptorSetLayout _singleImageDescriptorLayout;
+
     public:
         Core() = default;
         void Init();
@@ -226,5 +315,12 @@ namespace Engine {
         void Shutdown();
 
         DescriptorAllocator globalDescriptorAllocator;
+        GPUSceneData sceneData;
+        VkDevice _device; // Vulkan device for commands
+        VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
+        AllocatedImage _drawImage;
+        AllocatedImage _depthImage;
+        MaterialInstance defaultData;
+        GLTFMetallic_Roughness metalRoughMaterial;
     };
 } // namespace Engine
