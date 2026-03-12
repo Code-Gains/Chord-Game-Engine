@@ -7,6 +7,8 @@
 #include "WindowGLFW.h"
 #include <filesystem>
 #include "vk_descriptors.h"
+#include <glm/glm.hpp>
+#include <glm/gtx/transform.hpp>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnullability-completeness"
@@ -18,6 +20,36 @@
 
 
 namespace Engine {
+
+
+    struct Camera {
+        glm::vec3 position = {0.0f, 0.0f, 5.0f};
+        glm::vec3 front    = {0.0f, 0.0f, -1.0f};
+        glm::vec3 up       = {0.0f, 1.0f, 0.0f};
+        glm::vec3 right    = {1.0f, 0.0f, 0.0f};
+
+        float yaw   = -90.f; // looking along -Z
+        float pitch = 0.f;
+        float speed = 5.0f;  // units/sec
+        float sensitivity = 0.1f; // mouse sensitivity
+
+        void UpdateVectors() {
+            // Calculate front vector from yaw/pitch
+            glm::vec3 f;
+            f.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+            f.y = sin(glm::radians(pitch));
+            f.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+            front = glm::normalize(f);
+
+            // Recalculate right and up
+            right = glm::normalize(glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f)));
+            up = glm::normalize(glm::cross(right, front));
+        }
+
+        glm::mat4 GetViewMatrix() const {
+            return glm::lookAt(position, position + front, up);
+        }
+    };
 
     struct RenderObject {
         uint32_t indexCount;
@@ -322,5 +354,6 @@ namespace Engine {
         AllocatedImage _depthImage;
         MaterialInstance defaultData;
         GLTFMetallic_Roughness metalRoughMaterial;
+        Camera camera;
     };
 } // namespace Engine

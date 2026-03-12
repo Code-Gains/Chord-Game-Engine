@@ -11,8 +11,12 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
+//#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+// #define GLM_FORCE_LEFT_HANDED
+// #define GLM_ENABLE_EXPERIMENTAL
+
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/transform.hpp>
 
 #include <fastgltf/glm_element_traits.hpp>
 #include <fastgltf/core.hpp>
@@ -918,8 +922,71 @@ namespace Engine {
         vkCmdDispatch(cmd, std::ceil(_drawExtent.width / 16.0), std::ceil(_drawExtent.height / 16.0), 1);
     }
 
+    glm::mat4 MakeWorldMatrix(const glm::vec3& position, const glm::vec3& rotationEuler, const glm::vec3& scale)
+    {
+        glm::mat4 T = glm::translate(glm::mat4(1.0f), position);
+
+        // Rotation: Euler angles in radians
+        glm::mat4 Rx = glm::rotate(glm::mat4(1.0f), rotationEuler.x, glm::vec3(1, 0, 0));
+        glm::mat4 Ry = glm::rotate(glm::mat4(1.0f), rotationEuler.y, glm::vec3(0, 1, 0));
+        glm::mat4 Rz = glm::rotate(glm::mat4(1.0f), rotationEuler.z, glm::vec3(0, 0, 1));
+        glm::mat4 R = Rz * Ry * Rx; // ZYX order
+
+        glm::mat4 S = glm::scale(glm::mat4(1.0f), scale);
+
+        return T * R * S;
+    }
+
+    void UpdateCamera(Camera& cam, GLFWwindow* window, float deltaTime)
+    {
+        glm::vec3 right = glm::normalize(glm::cross(cam.front, cam.up));
+
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+            cam.position += cam.front * cam.speed * deltaTime;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+            cam.position -= cam.front * cam.speed * deltaTime;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+            cam.position -= right * cam.speed * deltaTime;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            cam.position += right * cam.speed * deltaTime;
+    }
+
+    void UpdateCameraRotation(Camera& cam, double mouseX, double mouseY, double& lastX, double& lastY, bool& firstMouse) {
+        if (firstMouse) {
+            lastX = mouseX;
+            lastY = mouseY;
+            firstMouse = false;
+        }
+
+        float xoffset = (float)(mouseX - lastX);
+        float yoffset = (float)(lastY - mouseY); // reversed Y
+        lastX = mouseX;
+        lastY = mouseY;
+
+        xoffset *= cam.sensitivity;
+        yoffset *= cam.sensitivity;
+
+        cam.yaw += xoffset;
+        cam.pitch += yoffset;
+
+        // clamp pitch
+        if (cam.pitch > 89.0f) cam.pitch = 89.0f;
+        if (cam.pitch < -89.0f) cam.pitch = -89.0f;
+
+        cam.UpdateVectors();
+    }
     void Core::DrawGeometry(VkCommandBuffer cmd)
     {
+        static float time = 0;
+        time += 0.00001;
+        
+        static bool firstMouse = true;
+        static double lastX = 0, lastY = 0;
+        double mouseX, mouseY;
+        glfwGetCursorPos(_window->GetNativeHandle(), &mouseX, &mouseY);
+        UpdateCamera(camera, _window->GetNativeHandle(), time);
+        UpdateCameraRotation(camera, mouseX, mouseY, lastX, lastY, firstMouse);
+
         //allocate a new uniform buffer for the scene data
 	    AllocatedBuffer gpuSceneDataBuffer = CreateBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
         //add it to the deletion queue of this frame so it gets deleted once its been used
@@ -948,29 +1015,29 @@ namespace Engine {
         
         vkCmdBeginRendering(cmd, &renderInfo);
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+        // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
 
-        //set dynamic viewport and scissor
-        VkViewport viewport = {};
-        viewport.x = 0;
-        viewport.y = 0;
-        viewport.width = _drawExtent.width;
-        viewport.height = _drawExtent.height;
-        viewport.minDepth = 0.f;
-        viewport.maxDepth = 1.f;
+        // //set dynamic viewport and scissor
+        // VkViewport viewport = {};
+        // viewport.x = 0;
+        // viewport.y = 0;
+        // viewport.width = _drawExtent.width;
+        // viewport.height = _drawExtent.height;
+        // viewport.minDepth = 0.f;
+        // viewport.maxDepth = 1.f;
 
-        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        // vkCmdSetViewport(cmd, 0, 1, &viewport);
 
-        VkRect2D scissor = {};
-        scissor.offset.x = 0;
-        scissor.offset.y = 0;
-        scissor.extent.width = _drawExtent.width;
-        scissor.extent.height = _drawExtent.height;
+        // VkRect2D scissor = {};
+        // scissor.offset.x = 0;
+        // scissor.offset.y = 0;
+        // scissor.extent.width = _drawExtent.width;
+        // scissor.extent.height = _drawExtent.height;
 
-        vkCmdSetScissor(cmd, 0, 1, &scissor);
+        // vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-        //launch a draw command to draw 3 vertices
-        vkCmdDraw(cmd, 3, 1, 0, 0);
+        // //launch a draw command to draw 3 vertices
+        // vkCmdDraw(cmd, 3, 1, 0, 0);
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
 
@@ -993,29 +1060,63 @@ namespace Engine {
 
         //vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
 
-        push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
         
-        //glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+       // glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0,0,-10});
         //glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0, -1, -5});
+        static float posModified = 0.0f;
+        posModified += 0.01;
+        // glm::mat4 view = glm::lookAt(
+        //     glm::vec3(posModified, 0, -10),  // camera position
+        //     glm::vec3(0, 0, 0),   // look target
+        //     glm::vec3(0, 1, 0)    // up
+        // );
+        //glm::mat4 view = glm::translate(glm::vec3{-posModified,0,-10}); 
 
-        glm::mat4 view = glm::lookAt(
-            glm::vec3(1, 1, -5),  // camera position
-            glm::vec3(0, 0, 0),   // look target
-            glm::vec3(0, 1, 0)    // up
-        );
+
+        glm::mat4 view = camera.GetViewMatrix();
+        // glm::mat4 projection = glm::perspective(
+        //     glm::radians(70.f),
+        //     (float)_drawExtent.width / (float)_drawExtent.height,
+        //     0.1f,
+        //     10000.f
+        // );
+        // projection[1][1] *= -1; // Vulkan flip
+
+
         // // camera projection
         glm::mat4 projection = glm::perspective(
             glm::radians(70.f),
             (float)_drawExtent.width / (float)_drawExtent.height,
-            0.1f,
-            10000.f
+            10000.0f,
+            0.1f
         );
+
+        glm::mat4 pos1 = glm::translate(glm::vec3(1.0f, 1.0f, 1.0f));
+        glm::mat4 pos2 = glm::translate(glm::vec3(3.0f, -1.0f, -1.0f));
+        
+        //pos2 = glm::rotate(pos2, glm::vec3{0, 0, 0});
+
 
         // // invert the Y direction on projection matrix so that we are more similar
         // // to opengl and gltf axis
+
+    //     glm::mat4 projectionx(
+    //     1.0,  0.0,  0.0,  0.0,
+    //     0.0, -1.0,  0.0,  0.0,
+    //     0.0,  0.0,  0.5,  0.0,
+    //     0.0,  0.0,  0.5,  1.0,
+    // );
         projection[1][1] *= -1;
 
-	    push_constants.worldMatrix = projection * view;
+        push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+	    push_constants.worldMatrix = projection * view * pos1;
+
+        vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+        vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+
+        push_constants.worldMatrix = projection * view * pos2;
+
 
         vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
         vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -1188,11 +1289,11 @@ namespace Engine {
     void Core::InitMeshPipeline()
     {
         VkShaderModule triangleFragShader;
-        //if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.frag.spv", _device, &triangleFragShader))
-        //    ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
-
-        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\tex_image.frag.spv", _device, &triangleFragShader))
+        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.frag.spv", _device, &triangleFragShader))
             ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
+
+        //if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\tex_image.frag.spv", _device, &triangleFragShader))
+        //    ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
 
         VkShaderModule triangleVertexShader;
         if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle_mesh.vert.spv", _device, &triangleVertexShader))
