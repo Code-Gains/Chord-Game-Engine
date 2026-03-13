@@ -11,7 +11,6 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
-//#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 // #define GLM_FORCE_LEFT_HANDED
 // #define GLM_ENABLE_EXPERIMENTAL
 
@@ -1015,28 +1014,28 @@ namespace Engine {
         
         vkCmdBeginRendering(cmd, &renderInfo);
 
-        // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
 
-        // //set dynamic viewport and scissor
-        // VkViewport viewport = {};
-        // viewport.x = 0;
-        // viewport.y = 0;
-        // viewport.width = _drawExtent.width;
-        // viewport.height = _drawExtent.height;
-        // viewport.minDepth = 0.f;
-        // viewport.maxDepth = 1.f;
+        //set dynamic viewport and scissor
+        VkViewport viewport = {};
+        viewport.x = 0;
+        viewport.y = 0;
+        viewport.width = _drawExtent.width;
+        viewport.height = _drawExtent.height;
+        viewport.minDepth = 0.f;
+        viewport.maxDepth = 1.f;
 
-        // vkCmdSetViewport(cmd, 0, 1, &viewport);
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
 
-        // VkRect2D scissor = {};
-        // scissor.offset.x = 0;
-        // scissor.offset.y = 0;
-        // scissor.extent.width = _drawExtent.width;
-        // scissor.extent.height = _drawExtent.height;
+        VkRect2D scissor = {};
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        scissor.extent.width = _drawExtent.width;
+        scissor.extent.height = _drawExtent.height;
 
-        // vkCmdSetScissor(cmd, 0, 1, &scissor);
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-        // //launch a draw command to draw 3 vertices
+        //launch a draw command to draw 3 vertices
         // vkCmdDraw(cmd, 3, 1, 0, 0);
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
@@ -1330,7 +1329,7 @@ namespace Engine {
         pipelineBuilder.disable_blending();
         //pipelineBuilder.enable_blending_additive();
 
-        //pipelineBuilder.disable_depthtest();
+        pipelineBuilder.disable_depthtest();
         pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
         //connect the image format we will draw into, from draw image

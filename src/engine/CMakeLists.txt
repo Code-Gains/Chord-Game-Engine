@@ -25,6 +25,7 @@ add_library(engine STATIC
 
 target_compile_definitions(engine PRIVATE
     $<$<CONFIG:Debug>:DEBUG>
+    GLM_FORCE_DEPTH_ZERO_TO_ONE
 )
 
 # Include engine headers + dependencies
