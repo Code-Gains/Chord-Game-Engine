@@ -28,6 +28,9 @@
 #include "vk_descriptors.h"
 #pragma clang diagnostic pop
 
+// ECS PORT
+#include "EcsDebugger.h"
+
 namespace Engine {
 #ifdef DEBUG
     constexpr bool gUseValidationLayers = true; // TODO move to global settings later
@@ -825,41 +828,43 @@ namespace Engine {
 
     void Core::DrawUi()
     {
-		if (ImGui::Begin("Background")) {
+        _ecsDebugger.Draw();
 
-        ComputeEffect& selected = _backgroundEffects[_currentBackgroundEffect];
+		// if (ImGui::Begin("Background")) {
 
-        // Header
-        ImGui::TextDisabled("Active Effect");
-        ImGui::SameLine();
-        ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f), "%s", selected.name);
+        //     ComputeEffect& selected = _backgroundEffects[_currentBackgroundEffect];
 
-        ImGui::Separator();
+        //     // Header
+        //     ImGui::TextDisabled("Active Effect");
+        //     ImGui::SameLine();
+        //     ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f), "%s", selected.name);
 
-        // Effect selection
-        ImGui::PushItemWidth(-1);
-        ImGui::SliderInt(
-            "##EffectIndex",
-            &_currentBackgroundEffect,
-            0,
-            (int)_backgroundEffects.size() - 1
-        );
-        ImGui::PopItemWidth();
+        //     ImGui::Separator();
 
-        ImGui::Spacing();
+        //     // Effect selection
+        //     ImGui::PushItemWidth(-1);
+        //     ImGui::SliderInt(
+        //         "##EffectIndex",
+        //         &_currentBackgroundEffect,
+        //         0,
+        //         (int)_backgroundEffects.size() - 1
+        //     );
+        //     ImGui::PopItemWidth();
 
-        // Parameters section
-        ImGui::TextDisabled("Parameters");
-        ImGui::Indent();
+        //     ImGui::Spacing();
 
-        ImGui::DragFloat4("Data 1", &selected.data.data1.x, 0.01f);
-        ImGui::DragFloat4("Data 2", &selected.data.data2.x, 0.01f);
-        ImGui::DragFloat4("Data 3", &selected.data.data3.x, 0.01f);
-        ImGui::DragFloat4("Data 4", &selected.data.data4.x, 0.01f);
+        //     // Parameters section
+        //     ImGui::TextDisabled("Parameters");
+        //     ImGui::Indent();
 
-        ImGui::Unindent();
-    }
-    ImGui::End();
+        //     ImGui::DragFloat4("Data 1", &selected.data.data1.x, 0.01f);
+        //     ImGui::DragFloat4("Data 2", &selected.data.data2.x, 0.01f);
+        //     ImGui::DragFloat4("Data 3", &selected.data.data3.x, 0.01f);
+        //     ImGui::DragFloat4("Data 4", &selected.data.data4.x, 0.01f);
+
+        //     ImGui::Unindent();
+        // }
+        // ImGui::End();
 
     }
 
@@ -1231,12 +1236,12 @@ namespace Engine {
     void Core::InitTrianglePipeline()
     {
         VkShaderModule triangleFragShader;
-        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.frag.spv", _device, &triangleFragShader)) {
+        if (!vkutil::load_shader_module("../../../shaders/colored_triangle.frag.spv", _device, &triangleFragShader)) {
             ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
         }
 
         VkShaderModule triangleVertexShader;
-        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.vert.spv", _device, &triangleVertexShader)) {
+        if (!vkutil::load_shader_module("../../../shaders/colored_triangle.vert.spv", _device, &triangleVertexShader)) {
             ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
         }
         
@@ -1288,14 +1293,14 @@ namespace Engine {
     void Core::InitMeshPipeline()
     {
         VkShaderModule triangleFragShader;
-        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle.frag.spv", _device, &triangleFragShader))
+        if (!vkutil::load_shader_module("../../../shaders/colored_triangle.frag.spv", _device, &triangleFragShader))
             ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
 
         //if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\tex_image.frag.spv", _device, &triangleFragShader))
         //    ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
 
         VkShaderModule triangleVertexShader;
-        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\colored_triangle_mesh.vert.spv", _device, &triangleVertexShader))
+        if (!vkutil::load_shader_module("../../../shaders/colored_triangle_mesh.vert.spv", _device, &triangleVertexShader))
             ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
 
         VkPushConstantRange bufferRange{};
@@ -1428,7 +1433,7 @@ namespace Engine {
             DestroyBuffer(rectangle.vertexBuffer);
         });
 
-        testMeshes = LoadGltfMeshes(this,"C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\assets\\basicmesh.glb").value();
+        testMeshes = LoadGltfMeshes(this,"../../../assets/basicmesh.glb").value();
 
         // destroy mesh buffers on shutdown
         _mainDeletionQueue.push_function([&]() {

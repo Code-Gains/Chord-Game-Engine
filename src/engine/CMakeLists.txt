@@ -20,6 +20,7 @@ add_library(engine STATIC
     vk_images.cpp
     vk_pipelines.cpp
     vk_descriptors.cpp
+    EcsDebugger.cpp
 )
 
 

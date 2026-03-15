@@ -18,6 +18,9 @@
 // #define VMA_IMPLEMENTATION
 // #include "vk_mem_alloc.h"
 
+// ECS PORT
+#include "EcsDebugger.h"
+#include "Ecs.h"
 
 namespace Engine {
 
@@ -339,6 +342,9 @@ namespace Engine {
         VkSampler _defaultSamplerNearest;
 
         VkDescriptorSetLayout _singleImageDescriptorLayout;
+
+        EcsDebugger _ecsDebugger;
+        Ecs _ecs;
 
     public:
         Core() = default;
