@@ -49,7 +49,7 @@ FetchContent_MakeAvailable(glm)
 FetchContent_Declare(
     vkbootstrap
     GIT_REPOSITORY https://github.com/charles-lunarg/vk-bootstrap.git
-    GIT_TAG main
+    GIT_TAG v1.4.344
 )
 FetchContent_MakeAvailable(vkbootstrap)
 
@@ -103,6 +103,17 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(fastgltf)
+
+# ---------------------
+# EnTT
+# ---------------------
+FetchContent_Declare(
+    entt
+    GIT_REPOSITORY https://github.com/skypjack/entt.git
+    GIT_TAG v3.13.0 # or latest stable
+)
+
+FetchContent_MakeAvailable(entt)
 
 # ---------------------
 # Add engine + editor

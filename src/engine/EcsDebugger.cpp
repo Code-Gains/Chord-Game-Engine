@@ -2,13 +2,20 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 #include "EcsDebugger.h"
+#include "Transform.h"
+#include "InputSystem.h"
 
-EcsDebugger::EcsDebugger()
+EcsDebugger::EcsDebugger(entt::registry& registry) : System(registry)
 {
 }
 
 EcsDebugger::~EcsDebugger()
 {
+}
+
+void EcsDebugger::Update(float deltaTime)
+{
+	_fps = 1.0f / deltaTime;
 }
 
 void EcsDebugger::Draw()
@@ -17,36 +24,33 @@ void EcsDebugger::Draw()
 		return;
 
     ImGui::Begin("ECS Debugger");
-    ImGui::Text("Entity Count: %d", 0); //_ecs->GetEntityCount());
-    ImGui::Text("Archetype Count: %d", 0); //_ecs->GetArchetypeCount());
+	ImGui::Text("Performance:");
+	ImGui::Text("FPS: %.1f", _fps);
+	ImGui::Separator();
+    ImGui::Text("Transform entity count: %lld", _registry.view<Transform>().size()); //_ecs->GetEntityCount());
+	 // Get input state (singleton example)
+    auto view = _registry.view<InputState>();
+    if (!view.empty()) {
+        auto entity = *view.begin();
+        auto& input = view.get<InputState>(entity);
 
-	// if (ImGui::BeginTable("ArchetypeTable", 1, ImGuiTableFlags_Borders))
-	// {
-	// 	auto& signatureToArchetype = _ecs->GetSignatureToArchetype();
+        ImGui::Separator();
+        ImGui::Text("Input:");
 
-	// 	for (auto& signatureIt : signatureToArchetype)
-	// 	{
-	// 		ImGui::TableNextRow();
-	// 		ImGui::TableSetColumnIndex(0);
+		ImGui::Text("Mouse Pos: (%.2f, %.2f)", input.mouseX, input.mouseY);
+    	ImGui::Text("Mouse Delta: (%.2f, %.2f)", input.deltaX, input.deltaY);
 
-	// 		auto signature = signatureIt.second->GetSignature();
-
-	// 		auto fullBitsetStr = signature.to_string();
-	// 		int firstOnePos = fullBitsetStr.find('1');
-	// 		auto bitsetStr = fullBitsetStr.substr(firstOnePos);
-	// 		//ImGui::Text("%s", bitsetStr.c_str());
-	// 		if (ImGui::TreeNode(bitsetStr.c_str()))
-	// 		{
-	// 			auto& typeToComponentVector = signatureIt.second.get()->GetTypeToComponentVector();
-	// 			for (auto& typeIt : typeToComponentVector)
-	// 			{
-	// 				ImGui::Text("Type: %d Count: %d", typeIt.first, typeIt.second.get()->GetComponentCount());
-	// 			}
-	// 			ImGui::TreePop();
-	// 		}
-	// 	}
-	// 	ImGui::EndTable();
-	// }
+        for (const auto& [key, state] : input.keys) {
+            if (state.held || state.pressed || state.released) {
+                ImGui::Text("Key %d | H:%d P:%d R:%d",
+                    key,
+                    state.held,
+                    state.pressed,
+                    state.released
+                );
+            }
+        }
+    }
 	ImGui::End();
 }
 

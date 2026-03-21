@@ -29,6 +29,7 @@ namespace Engine {
             }
         });
         glfwSetWindowUserPointer(_window, this);
+        //glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         ENGINE_LOG_INFO("Window created");
     }
 

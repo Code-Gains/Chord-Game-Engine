@@ -1,10 +1,13 @@
 #pragma once
+#include <entt/entt.hpp>
 
 class System {
 public:
+	System(entt::registry& registry) : _registry(registry) {}
 	virtual ~System() = default;
-
-	virtual void Draw() = 0;
 	virtual void Update(float deltaTime) = 0;
-	virtual void PeriodicUpdate(float deltaTime) = 0;
+	virtual void Draw() = 0;
+
+protected:
+	entt::registry& _registry;
 };

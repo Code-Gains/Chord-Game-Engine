@@ -6,6 +6,9 @@
 #include "vk_initializers.h"
 #include "vk_images.h"
 #include "vk_pipelines.h"
+#include "Transform.h"
+#include "Camera.h"
+#include "CameraSystem.h"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -724,6 +727,15 @@ namespace Engine {
 
     void Core::Draw()
     {
+        // auto registryView = _registry.view<InputState>();
+
+        // for (auto entity : registryView) {
+        //     auto& inputState = registryView.get<InputState>(entity);
+            //_inputSystem.Update(inputState, _window->GetNativeHandle());
+        //}
+        // for (auto& system : _systems) {
+        //     system->Update(0.0f);
+        // }
         FrameData& frameData = GetCurrentFrame();
         //wait until the gpu has finished rendering the last frame. Timeout of 1 second
         VK_CHECK(vkWaitForFences(_device, 1, &GetCurrentFrame()._renderFence, true, 1000000000));
@@ -828,7 +840,7 @@ namespace Engine {
 
     void Core::DrawUi()
     {
-        _ecsDebugger.Draw();
+        //_ecsDebugger.Draw();
 
 		// if (ImGui::Begin("Background")) {
 
@@ -872,18 +884,18 @@ namespace Engine {
     {
 
         // //make a clear-color from frame number. This will flash with a 120 frame period.
-        // VkClearColorValue clearValue;
-        // float flash = std::abs(std::sin(_frameNumber / 120.f));
-        // clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
+        VkClearColorValue clearValue;
+        float flash = std::abs(std::sin(_frameNumber / 120.f));
+        clearValue = { { 0.0f, 0.0f, 0.0f, 1.0f } };
 
-        // VkImageSubresourceRange clearRange = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
+        VkImageSubresourceRange clearRange = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
         
         // //clear image
-        // vkCmdClearColorImage(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
-        // bind the gradient drawing compute pipeline
+        vkCmdClearColorImage(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+        //bind the gradient drawing compute pipeline
 
 
-        // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
+        //vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
 
         // // bind the descriptor set containing the draw image for the compute pipeline
         // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
@@ -909,78 +921,90 @@ namespace Engine {
         // // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
         // vkCmdDispatch(cmd, std::ceil(_drawExtent.width / 16.0), std::ceil(_drawExtent.height / 16.0), 1);
 
-        ComputeEffect& effect = _backgroundEffects[_currentBackgroundEffect];
+        // ComputeEffect& effect = _backgroundEffects[_currentBackgroundEffect];
 
-        // bind the background compute pipeline
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline);
+        // // bind the background compute pipeline
+        // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline);
 
-        // bind the descriptor set containing the draw image for the compute pipeline
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
-        if (_currentBackgroundEffect == 0)
-        {
-            effect.data.data1.x = _frameNumber / 100.0f;
-        }
+        // // bind the descriptor set containing the draw image for the compute pipeline
+        // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
+        // if (_currentBackgroundEffect == 0)
+        // {
+        //     effect.data.data1.x = _frameNumber / 100.0f;
+        // }
 
-        vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &effect.data);
-        // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
-        vkCmdDispatch(cmd, std::ceil(_drawExtent.width / 16.0), std::ceil(_drawExtent.height / 16.0), 1);
+        // vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &effect.data);
+        // // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+        // vkCmdDispatch(cmd, std::ceil(_drawExtent.width / 16.0), std::ceil(_drawExtent.height / 16.0), 1);
     }
 
-    glm::mat4 MakeWorldMatrix(const glm::vec3& position, const glm::vec3& rotationEuler, const glm::vec3& scale)
-    {
-        glm::mat4 T = glm::translate(glm::mat4(1.0f), position);
+    // glm::mat4 MakeWorldMatrix(const glm::vec3& position, const glm::vec3& rotationEuler, const glm::vec3& scale)
+    // {
+    //     glm::mat4 T = glm::translate(glm::mat4(1.0f), position);
 
-        // Rotation: Euler angles in radians
-        glm::mat4 Rx = glm::rotate(glm::mat4(1.0f), rotationEuler.x, glm::vec3(1, 0, 0));
-        glm::mat4 Ry = glm::rotate(glm::mat4(1.0f), rotationEuler.y, glm::vec3(0, 1, 0));
-        glm::mat4 Rz = glm::rotate(glm::mat4(1.0f), rotationEuler.z, glm::vec3(0, 0, 1));
-        glm::mat4 R = Rz * Ry * Rx; // ZYX order
+    //     // Rotation: Euler angles in radians
+    //     glm::mat4 Rx = glm::rotate(glm::mat4(1.0f), rotationEuler.x, glm::vec3(1, 0, 0));
+    //     glm::mat4 Ry = glm::rotate(glm::mat4(1.0f), rotationEuler.y, glm::vec3(0, 1, 0));
+    //     glm::mat4 Rz = glm::rotate(glm::mat4(1.0f), rotationEuler.z, glm::vec3(0, 0, 1));
+    //     glm::mat4 R = Rz * Ry * Rx; // ZYX order
 
-        glm::mat4 S = glm::scale(glm::mat4(1.0f), scale);
+    //     glm::mat4 S = glm::scale(glm::mat4(1.0f), scale);
 
-        return T * R * S;
-    }
+    //     return T * R * S;
+    // }
 
-    void UpdateCamera(Camera& cam, GLFWwindow* window, float deltaTime)
-    {
-        glm::vec3 right = glm::normalize(glm::cross(cam.front, cam.up));
+    // void UpdateCamera(Camera& cam, GLFWwindow* window, float deltaTime)
+    // {
+    //     glm::vec3 right = glm::normalize(glm::cross(cam.front, cam.up));
 
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-            cam.position += cam.front * cam.speed * deltaTime;
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-            cam.position -= cam.front * cam.speed * deltaTime;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            cam.position -= right * cam.speed * deltaTime;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-            cam.position += right * cam.speed * deltaTime;
-    }
+    //     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+    //         cam.position += cam.front * cam.speed * deltaTime;
+    //     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+    //         cam.position -= cam.front * cam.speed * deltaTime;
+    //     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+    //         cam.position -= right * cam.speed * deltaTime;
+    //     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+    //         cam.position += right * cam.speed * deltaTime;
+    // }
 
-    void UpdateCameraRotation(Camera& cam, double mouseX, double mouseY, double& lastX, double& lastY, bool& firstMouse) {
-        if (firstMouse) {
-            lastX = mouseX;
-            lastY = mouseY;
-            firstMouse = false;
-        }
+    // void UpdateCameraRotation(Camera& cam, double mouseX, double mouseY, double& lastX, double& lastY, bool& firstMouse) {
+    //     if (firstMouse) {
+    //         lastX = mouseX;
+    //         lastY = mouseY;
+    //         firstMouse = false;
+    //     }
 
-        float xoffset = (float)(mouseX - lastX);
-        float yoffset = (float)(lastY - mouseY); // reversed Y
-        lastX = mouseX;
-        lastY = mouseY;
+    //     float xoffset = (float)(mouseX - lastX);
+    //     float yoffset = (float)(lastY - mouseY); // reversed Y
+    //     lastX = mouseX;
+    //     lastY = mouseY;
 
-        xoffset *= cam.sensitivity;
-        yoffset *= cam.sensitivity;
+    //     xoffset *= cam.sensitivity;
+    //     yoffset *= cam.sensitivity;
 
-        cam.yaw += xoffset;
-        cam.pitch += yoffset;
+    //     cam.yaw += xoffset;
+    //     cam.pitch += yoffset;
 
-        // clamp pitch
-        if (cam.pitch > 89.0f) cam.pitch = 89.0f;
-        if (cam.pitch < -89.0f) cam.pitch = -89.0f;
+    //     // clamp pitch
+    //     if (cam.pitch > 89.0f) cam.pitch = 89.0f;
+    //     if (cam.pitch < -89.0f) cam.pitch = -89.0f;
 
-        cam.UpdateVectors();
-    }
+    //     cam.UpdateVectors();
+    // }
     void Core::DrawGeometry(VkCommandBuffer cmd)
     {
+        glm::mat4 viewMatrix;;
+        glm::mat4 projectionMatrix;
+        auto registryView = _registry.view<Camera, Transform>();
+
+        for (auto entity : registryView) {
+            auto& camera = registryView.get<Camera>(entity);
+            auto& transform = registryView.get<Transform>(entity);
+
+            viewMatrix = camera.GetViewMatrix(transform);
+            projectionMatrix = camera.GetProjectionMatrix();
+        }
+
         static float time = 0;
         time += 0.00001;
         
@@ -988,11 +1012,11 @@ namespace Engine {
         static double lastX = 0, lastY = 0;
         double mouseX, mouseY;
         glfwGetCursorPos(_window->GetNativeHandle(), &mouseX, &mouseY);
-        UpdateCamera(camera, _window->GetNativeHandle(), time);
-        UpdateCameraRotation(camera, mouseX, mouseY, lastX, lastY, firstMouse);
+        //UpdateCamera(camera, _window->GetNativeHandle(), time);
+        //UpdateCameraRotation(camera, mouseX, mouseY, lastX, lastY, firstMouse);
 
         //allocate a new uniform buffer for the scene data
-	    AllocatedBuffer gpuSceneDataBuffer = CreateBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        AllocatedBuffer gpuSceneDataBuffer = CreateBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
         //add it to the deletion queue of this frame so it gets deleted once its been used
         GetCurrentFrame()._deletionQueue.push_function([=, this]() {
             DestroyBuffer(gpuSceneDataBuffer);
@@ -1003,7 +1027,7 @@ namespace Engine {
         *sceneUniformData = sceneData;
 
         //create a descriptor set that binds that buffer and update it
-	    VkDescriptorSet globalDescriptor = GetCurrentFrame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
+        VkDescriptorSet globalDescriptor = GetCurrentFrame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
 
         DescriptorWriter writer;
         writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
@@ -1065,7 +1089,7 @@ namespace Engine {
         //vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
 
         
-       // glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0,0,-10});
+        // glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0,0,-10});
         //glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0, -1, -5});
         static float posModified = 0.0f;
         posModified += 0.01;
@@ -1077,7 +1101,7 @@ namespace Engine {
         //glm::mat4 view = glm::translate(glm::vec3{-posModified,0,-10}); 
 
 
-        glm::mat4 view = camera.GetViewMatrix();
+        //glm::mat4 view = camera.GetViewMatrix();
         // glm::mat4 projection = glm::perspective(
         //     glm::radians(70.f),
         //     (float)_drawExtent.width / (float)_drawExtent.height,
@@ -1085,15 +1109,15 @@ namespace Engine {
         //     10000.f
         // );
         // projection[1][1] *= -1; // Vulkan flip
-
+        //projection[1][1] *= -1;
 
         // // camera projection
-        glm::mat4 projection = glm::perspective(
-            glm::radians(70.f),
-            (float)_drawExtent.width / (float)_drawExtent.height,
-            10000.0f,
-            0.1f
-        );
+        // glm::mat4 projection = glm::perspective(
+        //     glm::radians(70.f),
+        //     (float)_drawExtent.width / (float)_drawExtent.height,
+        //     10000.0f,
+        //     0.1f
+        // );
 
         glm::mat4 pos1 = glm::translate(glm::vec3(1.0f, 1.0f, 1.0f));
         glm::mat4 pos2 = glm::translate(glm::vec3(3.0f, -1.0f, -1.0f));
@@ -1104,27 +1128,54 @@ namespace Engine {
         // // invert the Y direction on projection matrix so that we are more similar
         // // to opengl and gltf axis
 
-    //     glm::mat4 projectionx(
-    //     1.0,  0.0,  0.0,  0.0,
-    //     0.0, -1.0,  0.0,  0.0,
-    //     0.0,  0.0,  0.5,  0.0,
-    //     0.0,  0.0,  0.5,  1.0,
-    // );
-        projection[1][1] *= -1;
+        //     glm::mat4 projectionx(
+        //     1.0,  0.0,  0.0,  0.0,
+        //     0.0, -1.0,  0.0,  0.0,
+        //     0.0,  0.0,  0.5,  0.0,
+        //     0.0,  0.0,  0.5,  1.0,
+        // );
+        //
 
-        push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
-	    push_constants.worldMatrix = projection * view * pos1;
+        // ECS Singles Rendering
+        {
+            auto registryView = _registry.view<MeshComponent, Transform>();
+            float rotationSpeed = glm::radians(45.0f); // 45/s
+            glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f); // Y-axis
+            glm::quat deltaRot = glm::angleAxis(rotationSpeed * _deltaTime, rotationAxis);
+            for (auto entity : registryView) {
+                
+                auto& meshComponent = registryView.get<MeshComponent>(entity);
+                auto& transformComponent = registryView.get<Transform>(entity);
+                auto translation = glm::translate(transformComponent.position);
+                transformComponent.rotation = deltaRot * transformComponent.rotation;
+                glm::mat4 rotationMat = glm::toMat4(transformComponent.rotation);
 
-        vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-        vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+               // push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+                push_constants.vertexBuffer = meshComponent.mesh.get()->meshBuffers.vertexBufferAddress;
+                push_constants.worldMatrix = projectionMatrix * viewMatrix * translation * rotationMat;
 
-        push_constants.worldMatrix = projection * view * pos2;
+                // vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+                // vkCmdBindIndexBuffer(cmd, meshComponent.mesh.get()->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+                // vkCmdDrawIndexed(cmd, meshComponent.mesh.get()->surfaces[0].count, 1, meshComponent.mesh.get()->surfaces[0].startIndex, 0, 0);
+                vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+                vkCmdBindIndexBuffer(cmd, meshComponent.mesh.get()->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+                vkCmdDrawIndexed(cmd,  meshComponent.mesh.get()->surfaces[0].count, 1,  meshComponent.mesh.get()->surfaces[0].startIndex, 0, 0);
+            }
+        }
+
+        // push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+        // push_constants.worldMatrix = projectionMatrix * viewMatrix * pos1;
+
+        // vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+        // vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        // vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+
+        // push_constants.worldMatrix = projectionMatrix * viewMatrix * pos2;
 
 
-        vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-        vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+        // vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+        // vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        // vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
         vkCmdEndRendering(cmd);
     }
 
@@ -1434,6 +1485,17 @@ namespace Engine {
         });
 
         testMeshes = LoadGltfMeshes(this,"../../../assets/basicmesh.glb").value();
+        //for (auto& meshAsset : testMeshes) {
+        for (int x = 0; x < 100; x++) {
+            for (int y = 0; y < 100; y++) {
+                auto meshEntity = _registry.create();
+                _registry.emplace<MeshComponent>(meshEntity, testMeshes[2]);
+                auto transform = Transform();
+                transform.position = glm::vec3 {x * 3 - 15, y * 3 - 15,  0.0f};
+                _registry.emplace<Transform>(meshEntity, transform);
+            }
+        }
+       // }
 
         // destroy mesh buffers on shutdown
         _mainDeletionQueue.push_function([&]() {
@@ -1573,6 +1635,7 @@ namespace Engine {
             }
             newMesh.meshBuffers = engine->UploadMesh(indices, vertices);
             meshes.emplace_back(std::make_shared<MeshAsset>(std::move(newMesh)));
+
         }
         return meshes;
     }
@@ -1583,6 +1646,18 @@ namespace Engine {
     #else
         ENGINE_LOG_INFO("Engine initializing in RELEASE mode!");
     #endif
+        // temp camera set up
+        auto cameraEntity = _registry.create();
+        auto& cameraTransform = _registry.emplace<Transform>(cameraEntity);
+        cameraTransform.position = { 0.0f, 0.0f, 10.0f };
+        cameraTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        auto& camera = _registry.emplace<Camera>(cameraEntity);
+
+        auto inputEntity = _registry.create();
+        _registry.emplace<InputState>(inputEntity);
+
+
+
         // Sets up GLFW Window with Vulkan Prerequisites
         InitWindow();
         InitVulkan();
@@ -1594,6 +1669,11 @@ namespace Engine {
         InitPipelines();
         InitDefaultData();
 
+                //_ecsDebugger = EcsDebugger(&_registry);
+        _systems.push_back(std::make_unique<EcsDebugger>(_registry));
+        _systems.push_back(std::make_unique<InputSystem>(_registry, inputEntity, _window->GetNativeHandle()));
+        _systems.push_back(std::make_unique<CameraSystem>(_registry));
+
         //everything went fine
         _isInitialized = true;
     }
@@ -1602,8 +1682,16 @@ namespace Engine {
         constexpr auto targetMinimizedFrameDuration = std::chrono::milliseconds(); // 20 FPS while minimized
         ENGINE_LOG_INFO("Starting Engine Main Loop.");
         bool running = true;
+
+        // initialize frame time
+        auto previousFrameTime = std::chrono::high_resolution_clock::now();
         while (!_window->ShouldClose()) {
             auto frameStartTime = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<float> delta = frameStartTime - previousFrameTime;
+            _deltaTime = delta.count();
+            //set for next frame
+            previousFrameTime = frameStartTime;
+
             _window->PollEvents();
 
             // Update
@@ -1612,7 +1700,6 @@ namespace Engine {
                 uint32_t height = _window->GetHeight();
                 if ((_window->GetWidth() == 0 || _window->GetHeight() == 0) || glfwGetWindowAttrib(_window->GetNativeHandle(), GLFW_ICONIFIED)) {
                     _appMinimized = true; // ignore swapchain
-                    //ENGINE_LOG_INFO("minimized");
                 }
                 else {
                     _appMinimized = false;
@@ -1631,6 +1718,11 @@ namespace Engine {
                 }
                 continue;
             }
+
+            for (auto& system : _systems) {
+                system->Update(_deltaTime);
+            }
+
             // imgui new frame
             ImGui_ImplVulkan_NewFrame();
             ImGui_ImplGlfw_NewFrame();
@@ -1645,6 +1737,9 @@ namespace Engine {
             //ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
             //ImGui::End();
             DrawUi();
+            for (auto& system : _systems) {
+                system->Draw();
+            }
             ImGui::Render();
             ImGui::UpdatePlatformWindows();
             ImGui::RenderPlatformWindowsDefault();

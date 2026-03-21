@@ -21,12 +21,23 @@ add_library(engine STATIC
     vk_pipelines.cpp
     vk_descriptors.cpp
     EcsDebugger.cpp
+    Camera.cpp
+    Transform.cpp
+    InputSystem.cpp
+    System.cpp
+    RenderingSystem.cpp
+    CameraSystem.cpp
 )
 
 
 target_compile_definitions(engine PRIVATE
     $<$<CONFIG:Debug>:DEBUG>
     GLM_FORCE_DEPTH_ZERO_TO_ONE
+)
+
+target_compile_options(engine PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/wd5105>       # disable MSVC specific warning if needed
+    $<$<CXX_COMPILER_ID:Clang>:-Wno-deprecated> # Clang warning suppression
 )
 
 # Include engine headers + dependencies
@@ -52,6 +63,7 @@ target_link_libraries(engine
         glfw
         imgui
         fastgltf
+         EnTT::EnTT
 )
 
 # Get all compute shaders in SHADER_DIR
