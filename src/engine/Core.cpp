@@ -414,12 +414,12 @@ namespace Engine {
         VK_CHECK(vkCreatePipelineLayout(_device, &computeLayout, nullptr, &_gradientPipelineLayout));
 
         VkShaderModule gradientShader;
-        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\gradient_color.comp.spv", _device, &gradientShader)) {
+        if (!vkutil::load_shader_module("../../../shaders/gradient_color.comp.spv", _device, &gradientShader)) {
             ENGINE_LOG_ERROR("Error when building the compute shader");
         }
 
         VkShaderModule skyShader;
-        if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\sky.comp.spv", _device, &skyShader)) {
+        if (!vkutil::load_shader_module("../../../shaders/sky.comp.spv", _device, &skyShader)) {
             ENGINE_LOG_ERROR("Error when building the compute shader");
         }
 

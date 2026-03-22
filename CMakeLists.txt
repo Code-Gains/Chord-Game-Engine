@@ -1,9 +1,12 @@
 # commands to run
 # cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DVulkanSdkDir="C:/VulkanSDK/1.4.335.0"    <-- Win64
 # cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DVulkanSdkDir="$HOME/vulkan-sdk/x86_64"   <-- Linux
+
+# cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DVulkanSdkDir="/$HOME/Development/1.4.341.1"
 # cmake --build build --target editor
 
 cmake_minimum_required(VERSION 3.26)
+cmake_policy(VERSION 3.26)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # generates compile_commands.json and allows text editor to see files
 project(MyVulkanEngine LANGUAGES C CXX)
 
