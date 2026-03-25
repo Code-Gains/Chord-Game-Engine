@@ -79,6 +79,16 @@ namespace Engine {
         MaterialPass passType;
     };
 
+    struct BatchDrawPushConstants {
+        glm::mat4 viewProjection;
+        VkDeviceAddress vertexBuffer;
+        VkDeviceAddress instanceBuffer;
+    };
+
+    struct InstanceData {
+        glm::mat4 model;
+    };
+
     // base class for a renderable dynamic object
     class IRenderable {
 
@@ -359,6 +369,10 @@ namespace Engine {
 
         // update trackers
         float _deltaTime = 0.0f;
+
+        // Batched
+        std::unordered_map<MeshAsset*, std::vector<InstanceData>> _batches;
+        AllocatedBuffer _instanceBuffer;
 
     public:
         Core() = default;

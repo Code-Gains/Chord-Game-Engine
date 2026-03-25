@@ -86,4 +86,19 @@ namespace Engine {
     void Engine::WindowGLFW::ResetResizedFlag() {
         _resized = false;
     }
+    void WindowGLFW::ToggleMaximize()
+    {
+        if (!_isFullscreen) {
+            glfwGetWindowPos(_window, &_windowedX, &_windowedY);
+            glfwGetWindowSize(_window, &_windowedWidth, &_windowedHeight);
+
+            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+            glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+            _isFullscreen = true;
+            return;
+        }
+        glfwSetWindowMonitor(_window, nullptr, _windowedX, _windowedY, _windowedWidth, _windowedHeight, 0);
+        _isFullscreen = false;
+    }
 } // namespace engine

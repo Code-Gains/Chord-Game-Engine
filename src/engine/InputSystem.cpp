@@ -2,13 +2,17 @@
 #include <iostream>
 
 
-InputSystem::InputSystem(entt::registry& registry, entt::entity inputEntity, GLFWwindow* window) : System(registry), _inputEntity(inputEntity), _window(window) {
+InputSystem::InputSystem(entt::registry& registry, entt::entity inputEntity, Engine::WindowGLFW* engineWindow) : System(registry), _inputEntity(inputEntity), _engineWindow(engineWindow) {
+    _window = _engineWindow->GetNativeHandle();
     _monitoredKeys = {
         GLFW_KEY_W,
         GLFW_KEY_A,
         GLFW_KEY_S,
         GLFW_KEY_D,
-        GLFW_KEY_SPACE
+        GLFW_KEY_SPACE,
+        GLFW_KEY_LEFT_ALT,
+        GLFW_KEY_RIGHT_ALT,
+        GLFW_KEY_ENTER
     };
 }
 
@@ -24,6 +28,7 @@ void InputSystem::Update(float deltaTime)
 
     inputState.mouseX = x;
     inputState.mouseY = y;
+
     for (int key : _monitoredKeys) {
         KeyState& state = inputState.keys[key];
 
@@ -32,6 +37,14 @@ void InputSystem::Update(float deltaTime)
         state.pressed  = currentlyPressed && !state.held;
         state.released = !currentlyPressed && state.held;
         state.held     = currentlyPressed;
+    }
+
+    bool altPressed = inputState.keys[GLFW_KEY_LEFT_ALT].held ||
+                      inputState.keys[GLFW_KEY_RIGHT_ALT].held;
+    if (altPressed && inputState.keys[GLFW_KEY_ENTER].pressed) {
+        if (_engineWindow) {
+            _engineWindow->ToggleMaximize();
+        }
     }
 }
 

@@ -10,7 +10,12 @@ namespace Engine {
 
         uint32_t _width;
         uint32_t _height;
+        int _windowedX;
+        int _windowedY;
+        int _windowedWidth;
+        int _windowedHeight;
         bool _resized = false;
+        bool _isFullscreen = false;
         void InitGLFW();
 
     public:
@@ -38,5 +43,6 @@ namespace Engine {
 
         bool WasResized();
         void ResetResizedFlag();
+        void ToggleMaximize();
     };
 } // namespace engine

@@ -5,7 +5,7 @@ struct Camera {
     float fov = 90.0f;
     float aspectRatio = 16.0f / 9.0f; // TODO 
     float nearPlane = 0.1f;
-    float farPlane = 1000.0f;
+    float farPlane = 100000.0f;
 
     // looking along -Z initially
     glm::vec3 direction { 0.0f, 0.0f, -1.0f };

@@ -3,6 +3,7 @@
 #include "WindowGLFW.h"
 #include "System.h"
 
+
 struct KeyState {
     bool pressed = false;   // this frame
     bool held = false;      // is being held down
@@ -20,7 +21,7 @@ struct InputState {
 
 class InputSystem : public System {
 public:
-    InputSystem(entt::registry& registry, entt::entity inputEntity, GLFWwindow* window);
+    InputSystem(entt::registry& registry, entt::entity inputEntity, Engine::WindowGLFW* engineWindow);
     void Update(float deltaTime) override;
     void Draw() override {};
     void AddKeyToMonitor(int key) { _monitoredKeys.push_back(key); }
@@ -29,4 +30,5 @@ private:
     std::vector<int> _monitoredKeys;
     entt::entity _inputEntity;
     GLFWwindow* _window;
+    Engine::WindowGLFW* _engineWindow;
 };

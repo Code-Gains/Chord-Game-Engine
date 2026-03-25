@@ -392,6 +392,15 @@ namespace Engine {
     {
         InitBackgroundPipelines();
         InitTrianglePipeline();
+
+        size_t maxInstances = 100000; // upper bound
+        _instanceBuffer = CreateBuffer(
+            sizeof(InstanceData) * maxInstances,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            VMA_MEMORY_USAGE_CPU_TO_GPU
+        );
+
+
         InitMeshPipeline();
     }
 
@@ -591,6 +600,16 @@ namespace Engine {
         VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation,
             &newBuffer.info));
 
+        // Get device address if requested
+        if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+            VkBufferDeviceAddressInfo addressInfo{};
+            addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+            addressInfo.buffer = newBuffer.buffer;
+            newBuffer.deviceAddress = vkGetBufferDeviceAddress(_device, &addressInfo);
+        } else {
+            newBuffer.deviceAddress = 0; // not used
+        }
+
         return newBuffer;
     }
 
@@ -742,9 +761,6 @@ namespace Engine {
 
         frameData._deletionQueue.flush();
         frameData._frameDescriptors.clear_pools(_device);
-        // wait until the gpu has finished rendering
-        VK_CHECK(vkWaitForFences(_device, 1, &frameData._renderFence, true, UINT64_MAX));
-        GetCurrentFrame()._deletionQueue.flush();
         VK_CHECK(vkResetFences(_device, 1, &frameData._renderFence));
 
         // pick per frame semaphore
@@ -1136,30 +1152,89 @@ namespace Engine {
         // );
         //
 
-        // ECS Singles Rendering
-        {
-            auto registryView = _registry.view<MeshComponent, Transform>();
-            float rotationSpeed = glm::radians(45.0f); // 45/s
-            glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f); // Y-axis
-            glm::quat deltaRot = glm::angleAxis(rotationSpeed * _deltaTime, rotationAxis);
-            for (auto entity : registryView) {
+        // // ECS Singles Rendering
+        // {
+        //     auto registryView = _registry.view<MeshComponent, Transform>();
+        //     float rotationSpeed = glm::radians(45.0f); // 45/s
+        //     glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f); // Y-axis
+        //     glm::quat deltaRot = glm::angleAxis(rotationSpeed * _deltaTime, rotationAxis);
+        //     for (auto entity : registryView) {
                 
+        //         auto& meshComponent = registryView.get<MeshComponent>(entity);
+        //         auto& transformComponent = registryView.get<Transform>(entity);
+        //         auto translation = glm::translate(transformComponent.position);
+        //         transformComponent.rotation = deltaRot * transformComponent.rotation;
+        //         glm::mat4 rotationMat = glm::toMat4(transformComponent.rotation);
+
+        //        // push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+        //         push_constants.vertexBuffer = meshComponent.mesh.get()->meshBuffers.vertexBufferAddress;
+        //         push_constants.worldMatrix = projectionMatrix * viewMatrix * translation * rotationMat;
+
+        //         // vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+        //         // vkCmdBindIndexBuffer(cmd, meshComponent.mesh.get()->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        //         // vkCmdDrawIndexed(cmd, meshComponent.mesh.get()->surfaces[0].count, 1, meshComponent.mesh.get()->surfaces[0].startIndex, 0, 0);
+        //         vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+        //         vkCmdBindIndexBuffer(cmd, meshComponent.mesh.get()->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        //         vkCmdDrawIndexed(cmd,  meshComponent.mesh.get()->surfaces[0].count, 1,  meshComponent.mesh.get()->surfaces[0].startIndex, 0, 0);
+        //     }
+        // }
+
+         // ECS Singles Rendering
+        {
+            _batches.clear(); // clear previous frame data
+
+            auto registryView = _registry.view<MeshComponent, Transform>();
+            for (auto entity : registryView) {
                 auto& meshComponent = registryView.get<MeshComponent>(entity);
                 auto& transformComponent = registryView.get<Transform>(entity);
-                auto translation = glm::translate(transformComponent.position);
-                transformComponent.rotation = deltaRot * transformComponent.rotation;
-                glm::mat4 rotationMat = glm::toMat4(transformComponent.rotation);
+                // Build instance data
+                InstanceData instance{};
+                instance.model = glm::translate(transformComponent.position);
 
-               // push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
-                push_constants.vertexBuffer = meshComponent.mesh.get()->meshBuffers.vertexBufferAddress;
-                push_constants.worldMatrix = projectionMatrix * viewMatrix * translation * rotationMat;
+                // Add to batch keyed by mesh
+                _batches[meshComponent.mesh.get()].push_back(instance);
+            }
+            // // After building _batches
+            // for (auto& [mesh, instances] : _batches) {
+            //     size_t count = instances.size();
+            //     printf("Mesh %p has %zu instances\n", mesh, count);
+            // }
+            size_t offset = 0; // starting point in the instance buffer
+            for (auto& [mesh, instances] : _batches) {
+                size_t dataSize = instances.size() * sizeof(InstanceData);
 
-                // vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-                // vkCmdBindIndexBuffer(cmd, meshComponent.mesh.get()->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-                // vkCmdDrawIndexed(cmd, meshComponent.mesh.get()->surfaces[0].count, 1, meshComponent.mesh.get()->surfaces[0].startIndex, 0, 0);
-                vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-                vkCmdBindIndexBuffer(cmd, meshComponent.mesh.get()->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-                vkCmdDrawIndexed(cmd,  meshComponent.mesh.get()->surfaces[0].count, 1,  meshComponent.mesh.get()->surfaces[0].startIndex, 0, 0);
+                // Copy CPU-side instances into the persistently mapped GPU buffer
+                memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + offset,
+                    instances.data(),
+                    dataSize);
+
+                // Save GPU device address for push constants
+                VkDeviceAddress instanceAddress = _instanceBuffer.deviceAddress + offset;
+
+                // Push constants per mesh
+                BatchDrawPushConstants pc{};
+                pc.viewProjection = projectionMatrix * viewMatrix;
+                pc.vertexBuffer = mesh->meshBuffers.vertexBufferAddress;
+                pc.instanceBuffer = instanceAddress;
+
+                vkCmdPushConstants(cmd, _meshPipelineLayout,
+                                VK_SHADER_STAGE_VERTEX_BIT,
+                                0,
+                                sizeof(pc),
+                                &pc);
+
+                // Bind index buffer for this mesh
+                vkCmdBindIndexBuffer(cmd, mesh->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+                // Draw all instances of this mesh
+                vkCmdDrawIndexed(cmd,
+                                mesh->surfaces[0].count,    // index count per mesh
+                                instances.size(),           // number of instances
+                                mesh->surfaces[0].startIndex,
+                                0,
+                                0);
+
+                offset += dataSize; // move pointer for the next batch
             }
         }
 
@@ -1351,12 +1426,15 @@ namespace Engine {
         //    ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
 
         VkShaderModule triangleVertexShader;
-        if (!vkutil::load_shader_module("../../../shaders/colored_triangle_mesh.vert.spv", _device, &triangleVertexShader))
+        // if (!vkutil::load_shader_module("../../../shaders/colored_triangle_mesh.vert.spv", _device, &triangleVertexShader))
+        //     ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
+        if (!vkutil::load_shader_module("../../../shaders/batch_color_mesh.vert.spv", _device, &triangleVertexShader))
             ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
 
         VkPushConstantRange bufferRange{};
         bufferRange.offset = 0;
-        bufferRange.size = sizeof(GPUDrawPushConstants);
+        //bufferRange.size = sizeof(GPUDrawPushConstants);
+        bufferRange.size = sizeof(BatchDrawPushConstants);
         bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
         VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
@@ -1486,7 +1564,7 @@ namespace Engine {
 
         testMeshes = LoadGltfMeshes(this,"../../../assets/basicmesh.glb").value();
         //for (auto& meshAsset : testMeshes) {
-        for (int x = 0; x < 100; x++) {
+        for (int x = 0; x < 1000; x++) {
             for (int y = 0; y < 100; y++) {
                 auto meshEntity = _registry.create();
                 _registry.emplace<MeshComponent>(meshEntity, testMeshes[2]);
@@ -1671,7 +1749,7 @@ namespace Engine {
 
                 //_ecsDebugger = EcsDebugger(&_registry);
         _systems.push_back(std::make_unique<EcsDebugger>(_registry));
-        _systems.push_back(std::make_unique<InputSystem>(_registry, inputEntity, _window->GetNativeHandle()));
+        _systems.push_back(std::make_unique<InputSystem>(_registry, inputEntity, _window.get()));
         _systems.push_back(std::make_unique<CameraSystem>(_registry));
 
         //everything went fine
@@ -1776,6 +1854,7 @@ namespace Engine {
         // 3 destroy main deletion queue
         CleanupDrawImageDescriptors();
         CleanupDrawImages();
+        DestroyBuffer(_instanceBuffer);
         _mainDeletionQueue.flush();
 
         // 4 destroy swapchain images

@@ -36,6 +36,7 @@ struct AllocatedBuffer {
     VkBuffer buffer;
     VmaAllocation allocation;
     VmaAllocationInfo info;
+    VkDeviceAddress deviceAddress = 0;
 };
 
 struct GPUGLTFMaterial {
@@ -95,6 +96,7 @@ struct GPUDrawPushConstants {
     glm::mat4 worldMatrix;
     VkDeviceAddress vertexBuffer;
 };
+
 //< vbuf_types
 
 //> node_types
