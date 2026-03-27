@@ -16,6 +16,9 @@ EcsDebugger::~EcsDebugger()
 void EcsDebugger::Update(float deltaTime)
 {
 	_fps = 1.0f / deltaTime;
+    _totalDeltaTime += deltaTime;
+    _averageFramerate = _framesPassed / _totalDeltaTime;
+    _framesPassed++;
 }
 
 void EcsDebugger::Draw()
@@ -26,6 +29,7 @@ void EcsDebugger::Draw()
     ImGui::Begin("ECS Debugger");
 	ImGui::Text("Performance:");
 	ImGui::Text("FPS: %.1f", _fps);
+     ImGui::Text("Avg FPS: %.1f", _averageFramerate);
 	ImGui::Separator();
     ImGui::Text("Transform entity count: %lld", _registry.view<Transform>().size()); //_ecs->GetEntityCount());
 	 // Get input state (singleton example)

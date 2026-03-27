@@ -11,7 +11,12 @@
 class EcsDebugger : public System {
     //ECS* _ecs;
     bool _enabled = true; // TODO SET FALSE
+    float _totalDeltaTime = 0;
     float _fps = 0;
+    uint32_t _framesPassed = 0;
+    float _averageFramerate = 0;
+    float frameTimeMs = 0.0f;
+
 
 public:
     EcsDebugger(entt::registry& registry);

@@ -1,4 +1,7 @@
 #include <chrono>
+using Clock = std::chrono::high_resolution_clock;
+#include <mutex>
+#include <future>
 #include <thread>
 #include <cmath>
 #include "Core.h"
@@ -35,7 +38,7 @@
 #include "EcsDebugger.h"
 
 namespace Engine {
-#ifdef DEBUG
+#ifndef NDEBUG
     constexpr bool gUseValidationLayers = true; // TODO move to global settings later
 #else
     constexpr bool gUseValidationLayers = false; // TODO move to global settings later
@@ -109,6 +112,28 @@ namespace Engine {
 
         _mainDeletionQueue.push_function([&]() {
             vmaDestroyAllocator(_allocator);
+        });
+    }
+
+    void Core::InitQueries()
+    {
+        VkQueryPoolCreateInfo qp{};
+        qp.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        qp.queryCount = 2;
+
+        for (int i = 0; i < FRAME_OVERLAP; i++) {
+            VK_CHECK(vkCreateQueryPool(_device, &qp, nullptr, &_frames[i]._gpuQueryPool));
+        }
+
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(_chosenGPU, &props);
+        _timestampPeriod = props.limits.timestampPeriod;
+
+        _mainDeletionQueue.push_function([this]() {
+            for (int i = 0; i < FRAME_OVERLAP; i++) {
+                vkDestroyQueryPool(_device, _frames[i]._gpuQueryPool, nullptr);
+            }
         });
     }
 
@@ -393,7 +418,7 @@ namespace Engine {
         InitBackgroundPipelines();
         InitTrianglePipeline();
 
-        size_t maxInstances = 100000; // upper bound
+        size_t maxInstances = 1000000; // upper bound
         _instanceBuffer = CreateBuffer(
             sizeof(InstanceData) * maxInstances,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
@@ -849,7 +874,6 @@ namespace Engine {
         presentInfo.waitSemaphoreCount = 1;
 
         VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
-
         // increase the number of frames drawn
         _frameNumber++;
     }
@@ -1181,32 +1205,154 @@ namespace Engine {
 
          // ECS Singles Rendering
         {
+            auto t0 = Clock::now();
             _batches.clear(); // clear previous frame data
-
             auto registryView = _registry.view<MeshComponent, Transform>();
-            for (auto entity : registryView) {
-                auto& meshComponent = registryView.get<MeshComponent>(entity);
-                auto& transformComponent = registryView.get<Transform>(entity);
-                // Build instance data
-                InstanceData instance{};
-                instance.model = glm::translate(transformComponent.position);
+            //std::mutex batchMutex;
+            size_t offset2 = 0;
 
-                // Add to batch keyed by mesh
-                _batches[meshComponent.mesh.get()].push_back(instance);
+            //std::unordered_map<MeshAsset*, std::vector<InstanceData>> batchesTemp;
+            // auto registryView = _registry.view<MeshComponent, Transform>();
+
+            size_t numThreads = std::thread::hardware_concurrency();
+            size_t numEntities = 1000000;
+            size_t chunkSize = (numEntities + numThreads - 1) / numThreads;
+
+            // auto& batch = _batches.begin()->second; // or create it if empty
+            // batch.resize(numEntities);
+
+             for (auto entity : registryView) {
+                auto& meshComponent = registryView.get<MeshComponent>(entity);
+                auto& batch = _batches[meshComponent.mesh.get()];
+                batch.resize(numEntities);
+                break;
+             }
+
+            std::vector<std::thread> threads;
+
+            auto entitiesBegin = registryView.begin();
+            size_t entitiesPerThread = (numEntities + numThreads - 1) / numThreads;
+            for (size_t t = 0; t < numThreads; ++t) {
+                // threads.emplace_back([&, t]() {
+                //     size_t start = t * chunkSize;
+                //     size_t end = std::min(start + chunkSize, numEntities);
+
+                //     auto it = entitiesBegin;
+                //     std::advance(it, start);
+
+                //     for (size_t i = start; i < end; ++i, ++it) {
+                //         auto entity = *it;
+                //         auto& trans = registryView.get<Transform>(entity);
+
+                // //     if (trans.position.x > 0)
+                // //     trans.position.x -= 0.1;
+                // // if (trans.position.y > 0)
+                // //     trans.position.y -= 0.1;
+                // // if (trans.position.z > 0)
+                // //     trans.position.z -= 0.1;
+
+
+                //         InstanceData instance{};
+                //         instance.position = trans.position;
+                //         instance.rotation = trans.rotation;
+                //         instance.scale    = trans.scale;
+
+                //         // write directly into batch using global index
+                //         _batches.begin()->second[i] = instance;
+                //     }
+                // });
+                threads.emplace_back([&, t]() {
+                size_t start = t * entitiesPerThread;
+                size_t end   = std::min(start + entitiesPerThread, numEntities);
+
+                size_t threadOffset = start * sizeof(InstanceData); // <--- unique per thread
+
+                auto it = entitiesBegin;
+                std::advance(it, start);
+
+                for (size_t i = start; i < end; ++i, ++it) {
+                    auto& trans = registryView.get<Transform>(*it);
+
+                    InstanceData instance{};
+                    instance.position = trans.position;
+                    instance.rotation = trans.rotation;
+                    instance.scale    = trans.scale;
+
+                    memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + threadOffset,
+                        &instance,
+                        sizeof(InstanceData));
+                    threadOffset += sizeof(InstanceData);
+                }
+            });
             }
+
+            // Join all threads
+            for (auto& t : threads) t.join();
+
+
+            //  for (auto entity : registryView) {
+            //     auto& meshComponent = registryView.get<MeshComponent>(entity);
+            //     auto& transformComponent = registryView.get<Transform>(entity);
+            //     InstanceData instance{};
+            //     _batches[meshComponent.mesh.get()].push_back(instance);
+            //     break;
+            //  }
+
+
+
+            // for (auto entity : registryView) {
+            //     auto& meshComponent = registryView.get<MeshComponent>(entity);
+            //     auto& transformComponent = registryView.get<Transform>(entity);
+            //     // if (transformComponent.position.x > 0)
+            //     //     transformComponent.position.x -= 0.5;
+            //     // if (transformComponent.position.y > 0)
+            //     //     transformComponent.position.y -= 0.5;
+            //     // if (transformComponent.position.z > 0)
+            //     //     transformComponent.position.z -= 0.5;
+            //     // Build instance data
+            //     InstanceData instance{};
+            //     // instance.model = glm::translate(transformComponent.position);
+            //     // instance.model *= glm::toMat4(transformComponent.rotation);
+            //     // instance.model = glm::scale(instance.model, transformComponent.scale);
+            //     instance.position = transformComponent.position;
+            //     instance.rotation = transformComponent.rotation;
+            //     instance.scale    = transformComponent.scale;
+            //     // instance.position = transformComponent.position;
+            //     // instance.rotation = glm::vec4(
+            //     //     transformComponent.rotation.x,
+            //     //     transformComponent.rotation.y,
+            //     //     transformComponent.rotation.z,
+            //     //     transformComponent.rotation.w
+            //     // );
+            //     // instance.scale = transformComponent.scale;
+
+            //     // Add to batch keyed by mesh
+            //     _batches[meshComponent.mesh.get()].push_back(instance);
+            //     // auto size = sizeof(InstanceData);
+            //     // memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + offset2,
+            //     // static_cast<void*>(&instance),
+            //     // size);
+            //     // offset2 += size;
+            // }
+
+            
             // // After building _batches
             // for (auto& [mesh, instances] : _batches) {
             //     size_t count = instances.size();
             //     printf("Mesh %p has %zu instances\n", mesh, count);
             // }
+            auto t1 = Clock::now();
+
             size_t offset = 0; // starting point in the instance buffer
             for (auto& [mesh, instances] : _batches) {
                 size_t dataSize = instances.size() * sizeof(InstanceData);
+                //size_t dataSize = 100000 * sizeof(InstanceData);
 
                 // Copy CPU-side instances into the persistently mapped GPU buffer
-                memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + offset,
-                    instances.data(),
-                    dataSize);
+                // memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + offset,
+                //     instances.data(),
+                //     dataSize);
+                auto t2 = Clock::now();
 
                 // Save GPU device address for push constants
                 VkDeviceAddress instanceAddress = _instanceBuffer.deviceAddress + offset;
@@ -1230,11 +1376,18 @@ namespace Engine {
                 vkCmdDrawIndexed(cmd,
                                 mesh->surfaces[0].count,    // index count per mesh
                                 instances.size(),           // number of instances
+                                //100000,
                                 mesh->surfaces[0].startIndex,
                                 0,
                                 0);
 
-                offset += dataSize; // move pointer for the next batch
+                //offset += dataSize; // move pointer for the next batch
+                auto t3 = Clock::now();
+                auto ms = [](auto a, auto b) {
+                    return std::chrono::duration<float, std::milli>(b - a).count();
+                };
+                printf("Build: %.2f ms | Upload: %.2f ms | Record: %.2f ms\n",
+                ms(t0,t1), ms(t1,t2), ms(t2,t3));
             }
         }
 
@@ -1492,10 +1645,10 @@ namespace Engine {
         rect_vertices[2].position = {-0.5,-0.5, 0};
         rect_vertices[3].position = {-0.5,0.5, 0};
 
-        rect_vertices[0].color = {0,0, 0,1};
-        rect_vertices[1].color = { 0.5,0.5,0.5 ,1};
-        rect_vertices[2].color = { 1,0, 0,1 };
-        rect_vertices[3].color = { 0,1, 0,1 };
+        // rect_vertices[0].color = {0,0, 0,1};
+        // rect_vertices[1].color = { 0.5,0.5,0.5 ,1};
+        // rect_vertices[2].color = { 1,0, 0,1 };
+        // rect_vertices[3].color = { 0,1, 0,1 };
 
         std::array<uint32_t,6> rect_indices;
 
@@ -1564,13 +1717,17 @@ namespace Engine {
 
         testMeshes = LoadGltfMeshes(this,"../../../assets/basicmesh.glb").value();
         //for (auto& meshAsset : testMeshes) {
-        for (int x = 0; x < 1000; x++) {
+        int gap = 5;
+        for (int x = 0; x < 100; x++) {
             for (int y = 0; y < 100; y++) {
-                auto meshEntity = _registry.create();
-                _registry.emplace<MeshComponent>(meshEntity, testMeshes[2]);
-                auto transform = Transform();
-                transform.position = glm::vec3 {x * 3 - 15, y * 3 - 15,  0.0f};
-                _registry.emplace<Transform>(meshEntity, transform);
+                for (int z = 0; z < 100; z++) {
+                    auto meshEntity = _registry.create();
+                    _registry.emplace<MeshComponent>(meshEntity, testMeshes[0]);
+                    auto transform = Transform();
+                    transform.position = glm::vec3 {x * gap, y * gap,  z * gap};
+                    //transform.scale = glm::vec3 {10.0f, 10.0f, 10.0f};
+                    _registry.emplace<Transform>(meshEntity, transform);
+                }
             }
         }
        // }
@@ -1653,7 +1810,7 @@ namespace Engine {
                             Vertex newvtx;
                             newvtx.position = v;
                             newvtx.normal = { 1, 0, 0 };
-                            newvtx.color = glm::vec4 { 1.f };
+                            //newvtx.color = glm::vec4 { 1.f };
                             newvtx.uv_x = 0;
                             newvtx.uv_y = 0;
                             vertices[initial_vtx + index] = newvtx;
@@ -1682,35 +1839,35 @@ namespace Engine {
                             vertices[initial_vtx + index].uv_y = v.y;
                         });
                 }
-                // load vertex colors
-                auto colorsAttr = p.findAttribute("COLOR_0");
-                if (colorsAttr) {
-                    auto& colorsAccessor = gltf.accessors[colorsAttr->accessorIndex];
+                // // load vertex colors
+                // auto colorsAttr = p.findAttribute("COLOR_0");
+                // if (colorsAttr) {
+                //     auto& colorsAccessor = gltf.accessors[colorsAttr->accessorIndex];
 
-                    if (colorsAccessor.type == fastgltf::AccessorType::Vec4) {
-                        fastgltf::iterateAccessorWithIndex<glm::vec4>(gltf, colorsAccessor,
-                            [&](glm::vec4 v, size_t index) {
-                                vertices[initial_vtx + index].color = v;
-                            });
-                    } else if (colorsAccessor.type == fastgltf::AccessorType::Vec3) {
-                        fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, colorsAccessor,
-                            [&](glm::vec3 v, size_t index) {
-                                vertices[initial_vtx + index].color = glm::vec4(v, 1.0f);
-                            });
-                    } else {
-                        //ENGINE_LOG_WARN("Unsupported vertex color type in mesh %s", mesh.name.c_str());
-                    }
-                }
+                //     if (colorsAccessor.type == fastgltf::AccessorType::Vec4) {
+                //         fastgltf::iterateAccessorWithIndex<glm::vec4>(gltf, colorsAccessor,
+                //             [&](glm::vec4 v, size_t index) {
+                //                 vertices[initial_vtx + index].color = v;
+                //             });
+                //     } else if (colorsAccessor.type == fastgltf::AccessorType::Vec3) {
+                //         fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, colorsAccessor,
+                //             [&](glm::vec3 v, size_t index) {
+                //                 vertices[initial_vtx + index].color = glm::vec4(v, 1.0f);
+                //             });
+                //     } else {
+                //         //ENGINE_LOG_WARN("Unsupported vertex color type in mesh %s", mesh.name.c_str());
+                //     }
+                // }
                 newMesh.surfaces.push_back(newSurface);
             }
 
             // display the vertex normals
-            constexpr bool OverrideColors = true;
-            if (OverrideColors) {
-                for (Vertex& vtx : vertices) {
-                    vtx.color = glm::vec4(vtx.normal, 1.f);
-                }
-            }
+            // constexpr bool OverrideColors = true;
+            // if (OverrideColors) {
+            //     for (Vertex& vtx : vertices) {
+            //         vtx.color = glm::vec4(vtx.normal, 1.f);
+            //     }
+            // }
             newMesh.meshBuffers = engine->UploadMesh(indices, vertices);
             meshes.emplace_back(std::make_shared<MeshAsset>(std::move(newMesh)));
 
@@ -1739,6 +1896,7 @@ namespace Engine {
         // Sets up GLFW Window with Vulkan Prerequisites
         InitWindow();
         InitVulkan();
+        InitQueries();
         InitSwapchain();
         InitImgui();
         InitCommands();
@@ -1821,6 +1979,7 @@ namespace Engine {
             ImGui::Render();
             ImGui::UpdatePlatformWindows();
             ImGui::RenderPlatformWindowsDefault();
+            
             Draw();
         }
         ENGINE_LOG_INFO("Engine Shutting Down.");

@@ -10,6 +10,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <entt/entt.hpp>
 #include "System.h"
 #include "InputSystem.h"
@@ -85,8 +87,18 @@ namespace Engine {
         VkDeviceAddress instanceBuffer;
     };
 
+    // struct InstanceData {
+    //     // glm::vec3 position;
+    //     // glm::vec4 rotation;
+    //     // glm::vec3 scale;
+    //     glm::mat4 model;
+    // };
     struct InstanceData {
-        glm::mat4 model;
+        glm::vec3 position;
+        float pad0;        // std430 alignment
+        glm::quat rotation; // vec4
+        glm::vec3 scale;
+        float pad1;
     };
 
     // base class for a renderable dynamic object
@@ -115,6 +127,10 @@ namespace Engine {
         std::vector<GeoSurface> surfaces;
         GPUMeshBuffers meshBuffers;
     };
+    // struct DrawItem {
+    //     MeshAsset* mesh;
+    //     InstanceData instance;
+    // };
     struct MeshComponent {
         std::shared_ptr<MeshAsset> mesh;
     };
@@ -203,6 +219,7 @@ namespace Engine {
 
     struct FrameData {
         VkCommandPool _commandPool;
+        VkQueryPool _gpuQueryPool;
         VkCommandBuffer _mainCommandBuffer;
 	    VkFence _renderFence;
         DeletionQueue _deletionQueue;
@@ -247,6 +264,7 @@ namespace Engine {
         std::unique_ptr<WindowGLFW> _window;
         void InitWindow();
         void InitVulkan();
+        void InitQueries();
         void InitSwapchain();
         void InitCommands();
         void InitSyncStructures();
@@ -372,7 +390,9 @@ namespace Engine {
 
         // Batched
         std::unordered_map<MeshAsset*, std::vector<InstanceData>> _batches;
+        //std::vector<DrawItem> _drawItems;
         AllocatedBuffer _instanceBuffer;
+        float _timestampPeriod = 0.0f;
 
     public:
         Core() = default;
