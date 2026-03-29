@@ -41,7 +41,7 @@ void Simulation::Initialize(std::shared_ptr<MeshAsset> centerMesh, std::shared_p
                 auto particleEntity = _registry.create();
                 _registry.emplace<MeshComponent>(particleEntity, particleMesh);
                 auto transform = Transform();
-                transform.position = glm::vec3 {x * gap, y * gap,  z * gap};
+                transform.position = glm::vec3 {x * gap + 50, y * gap + 50,  z * gap + 50};
                 transform.rotation = RandomQuaternion(rng);
                 _registry.emplace<Transform>(particleEntity, transform);
                 auto physicsBody = PhysicsBody {1.0f, glm::vec3 {0.0f, 0.0f, -1.0f}};
@@ -53,7 +53,7 @@ void Simulation::Initialize(std::shared_ptr<MeshAsset> centerMesh, std::shared_p
     auto planetEntity = _registry.create();
     _registry.emplace<MeshComponent>(planetEntity, centerMesh);
     auto transform = Transform();
-    transform.position = glm::vec3 {-50, -50,  -50};
+    transform.position = glm::vec3 {-0, -0,  -0};
     transform.scale = glm::vec3 {0.1f, 0.1f,  0.1f};
     _registry.emplace<Transform>(planetEntity, transform);
     _registry.emplace<SingleRenderTag>(planetEntity);

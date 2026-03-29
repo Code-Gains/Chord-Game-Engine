@@ -1,8 +1,11 @@
 #version 460
 #extension GL_EXT_buffer_reference : require
 
-layout(location = 0) out vec3 outColor;
-layout(location = 1) out vec2 outUV;
+// layout(location = 0) out vec3 outColor;
+// layout(location = 1) out vec2 outUV;
+
+layout(location = 0) out vec3 outPos;
+layout(location = 1) out vec3 outNormal;
 
 struct Vertex {
     vec3 position;
@@ -67,6 +70,10 @@ vec3 applyTransform(vec3 point, vec3 pos, vec4 quat, vec3 scale){
   return point + pos;
 } 
 
+vec3 rotateByQuat(vec3 v, vec4 q) {
+    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+}
+
 void main() {
     Vertex vertex = PushConstants.vertexBuffer.vertices[gl_VertexIndex];
     InstanceData inst = PushConstants.instanceBuffer.instances[gl_InstanceIndex]; // <-- use instance index
@@ -76,6 +83,11 @@ void main() {
     // gl_Position = PushConstants.viewProjection * model * vec4(vertex.position, 1.0);
     vec3 worldPos = applyTransform(vertex.position, inst.position, inst.rotation, inst.scale);
     gl_Position = PushConstants.viewProjection * vec4(worldPos, 1.0);
-    outColor = vertex.normal;
-    outUV = vec2(vertex.uv_x, vertex.uv_y);
+    //outColor = vertex.normal;
+    outPos = inst.position;
+    //outNormal = applyTransform(vertex.normal, inst.position, inst.rotation, inst.scale);
+    //outNormal = rotateByQuat(vertex.normal, inst.rotation);
+    mat3 model3x3 = mat3(buildTransform(inst.position, inst.rotation, inst.scale));
+    outNormal = normalize(transpose(inverse(model3x3)) * vertex.normal);
+    //outUV = vec2(vertex.uv_x, vertex.uv_y);
 }
