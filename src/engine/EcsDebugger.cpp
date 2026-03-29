@@ -21,7 +21,8 @@ void EcsDebugger::Update(float deltaTime)
     _framesPassed++;
 }
 
-void EcsDebugger::Draw()
+
+void EcsDebugger::DrawUi()
 {
 	if (!_enabled)
 		return;

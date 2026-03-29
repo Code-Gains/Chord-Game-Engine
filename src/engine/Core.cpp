@@ -20,8 +20,8 @@ using Clock = std::chrono::high_resolution_clock;
 // #define GLM_FORCE_LEFT_HANDED
 // #define GLM_ENABLE_EXPERIMENTAL
 
-#include <glm/glm.hpp>
-#include <glm/gtx/transform.hpp>
+// #include <glm/glm.hpp>
+// #include <glm/gtx/transform.hpp>
 
 #include <fastgltf/glm_element_traits.hpp>
 #include <fastgltf/core.hpp>
@@ -36,6 +36,7 @@ using Clock = std::chrono::high_resolution_clock;
 
 // ECS PORT
 #include "EcsDebugger.h"
+#include "Simulation.h"
 
 namespace Engine {
 #ifndef NDEBUG
@@ -425,8 +426,8 @@ namespace Engine {
             VMA_MEMORY_USAGE_CPU_TO_GPU
         );
 
-
         InitMeshPipeline();
+        InitInstancedMeshPipeline();
     }
 
     void Core::InitBackgroundPipelines()
@@ -978,59 +979,6 @@ namespace Engine {
         // vkCmdDispatch(cmd, std::ceil(_drawExtent.width / 16.0), std::ceil(_drawExtent.height / 16.0), 1);
     }
 
-    // glm::mat4 MakeWorldMatrix(const glm::vec3& position, const glm::vec3& rotationEuler, const glm::vec3& scale)
-    // {
-    //     glm::mat4 T = glm::translate(glm::mat4(1.0f), position);
-
-    //     // Rotation: Euler angles in radians
-    //     glm::mat4 Rx = glm::rotate(glm::mat4(1.0f), rotationEuler.x, glm::vec3(1, 0, 0));
-    //     glm::mat4 Ry = glm::rotate(glm::mat4(1.0f), rotationEuler.y, glm::vec3(0, 1, 0));
-    //     glm::mat4 Rz = glm::rotate(glm::mat4(1.0f), rotationEuler.z, glm::vec3(0, 0, 1));
-    //     glm::mat4 R = Rz * Ry * Rx; // ZYX order
-
-    //     glm::mat4 S = glm::scale(glm::mat4(1.0f), scale);
-
-    //     return T * R * S;
-    // }
-
-    // void UpdateCamera(Camera& cam, GLFWwindow* window, float deltaTime)
-    // {
-    //     glm::vec3 right = glm::normalize(glm::cross(cam.front, cam.up));
-
-    //     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-    //         cam.position += cam.front * cam.speed * deltaTime;
-    //     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-    //         cam.position -= cam.front * cam.speed * deltaTime;
-    //     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-    //         cam.position -= right * cam.speed * deltaTime;
-    //     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-    //         cam.position += right * cam.speed * deltaTime;
-    // }
-
-    // void UpdateCameraRotation(Camera& cam, double mouseX, double mouseY, double& lastX, double& lastY, bool& firstMouse) {
-    //     if (firstMouse) {
-    //         lastX = mouseX;
-    //         lastY = mouseY;
-    //         firstMouse = false;
-    //     }
-
-    //     float xoffset = (float)(mouseX - lastX);
-    //     float yoffset = (float)(lastY - mouseY); // reversed Y
-    //     lastX = mouseX;
-    //     lastY = mouseY;
-
-    //     xoffset *= cam.sensitivity;
-    //     yoffset *= cam.sensitivity;
-
-    //     cam.yaw += xoffset;
-    //     cam.pitch += yoffset;
-
-    //     // clamp pitch
-    //     if (cam.pitch > 89.0f) cam.pitch = 89.0f;
-    //     if (cam.pitch < -89.0f) cam.pitch = -89.0f;
-
-    //     cam.UpdateVectors();
-    // }
     void Core::DrawGeometry(VkCommandBuffer cmd)
     {
         glm::mat4 viewMatrix;;
@@ -1107,7 +1055,7 @@ namespace Engine {
         //launch a draw command to draw 3 vertices
         // vkCmdDraw(cmd, 3, 1, 0, 0);
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+        // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
 
         //bind a texture
         VkDescriptorSet imageSet = GetCurrentFrame()._frameDescriptors.allocate(_device, _singleImageDescriptorLayout);
@@ -1117,50 +1065,16 @@ namespace Engine {
             writer.update_set(_device, imageSet);
         }
 
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
+        // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
 
-        GPUDrawPushConstants push_constants;
-        push_constants.worldMatrix = glm::mat4{ 1.f };
-        push_constants.vertexBuffer = rectangle.vertexBufferAddress;
+        //GPUDrawPushConstants push_constants;
+        // push_constants.worldMatrix = glm::mat4{ 1.f };
+        // push_constants.vertexBuffer = rectangle.vertexBufferAddress;
 
-        vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-        vkCmdBindIndexBuffer(cmd, rectangle.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        // vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+        // vkCmdBindIndexBuffer(cmd, rectangle.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
         //vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
-
-        
-        // glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0,0,-10});
-        //glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0, -1, -5});
-        static float posModified = 0.0f;
-        posModified += 0.01;
-        // glm::mat4 view = glm::lookAt(
-        //     glm::vec3(posModified, 0, -10),  // camera position
-        //     glm::vec3(0, 0, 0),   // look target
-        //     glm::vec3(0, 1, 0)    // up
-        // );
-        //glm::mat4 view = glm::translate(glm::vec3{-posModified,0,-10}); 
-
-
-        //glm::mat4 view = camera.GetViewMatrix();
-        // glm::mat4 projection = glm::perspective(
-        //     glm::radians(70.f),
-        //     (float)_drawExtent.width / (float)_drawExtent.height,
-        //     0.1f,
-        //     10000.f
-        // );
-        // projection[1][1] *= -1; // Vulkan flip
-        //projection[1][1] *= -1;
-
-        // // camera projection
-        // glm::mat4 projection = glm::perspective(
-        //     glm::radians(70.f),
-        //     (float)_drawExtent.width / (float)_drawExtent.height,
-        //     10000.0f,
-        //     0.1f
-        // );
-
-        glm::mat4 pos1 = glm::translate(glm::vec3(1.0f, 1.0f, 1.0f));
-        glm::mat4 pos2 = glm::translate(glm::vec3(3.0f, -1.0f, -1.0f));
         
         //pos2 = glm::rotate(pos2, glm::vec3{0, 0, 0});
 
@@ -1203,155 +1117,76 @@ namespace Engine {
         //     }
         // }
 
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instancedMeshPipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instancedMeshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
          // ECS Singles Rendering
         {
             auto t0 = Clock::now();
             _batches.clear(); // clear previous frame data
-            auto registryView = _registry.view<MeshComponent, Transform>();
-            //std::mutex batchMutex;
+            // exclude entities that are not meant for batch rendering
+            auto registryView = _registry.view<MeshComponent, Transform>(entt::exclude<SingleRenderTag>);
             size_t offset2 = 0;
 
-            //std::unordered_map<MeshAsset*, std::vector<InstanceData>> batchesTemp;
-            // auto registryView = _registry.view<MeshComponent, Transform>();
 
             size_t numThreads = std::thread::hardware_concurrency();
             size_t numEntities = 1000000;
             size_t chunkSize = (numEntities + numThreads - 1) / numThreads;
 
-            // auto& batch = _batches.begin()->second; // or create it if empty
-            // batch.resize(numEntities);
 
-             for (auto entity : registryView) {
+            for (auto entity : registryView) {
                 auto& meshComponent = registryView.get<MeshComponent>(entity);
                 auto& batch = _batches[meshComponent.mesh.get()];
                 batch.resize(numEntities);
                 break;
-             }
+            }
 
             std::vector<std::thread> threads;
 
             auto entitiesBegin = registryView.begin();
-            size_t entitiesPerThread = (numEntities + numThreads - 1) / numThreads;
             for (size_t t = 0; t < numThreads; ++t) {
-                // threads.emplace_back([&, t]() {
-                //     size_t start = t * chunkSize;
-                //     size_t end = std::min(start + chunkSize, numEntities);
-
-                //     auto it = entitiesBegin;
-                //     std::advance(it, start);
-
-                //     for (size_t i = start; i < end; ++i, ++it) {
-                //         auto entity = *it;
-                //         auto& trans = registryView.get<Transform>(entity);
-
-                // //     if (trans.position.x > 0)
-                // //     trans.position.x -= 0.1;
-                // // if (trans.position.y > 0)
-                // //     trans.position.y -= 0.1;
-                // // if (trans.position.z > 0)
-                // //     trans.position.z -= 0.1;
-
-
-                //         InstanceData instance{};
-                //         instance.position = trans.position;
-                //         instance.rotation = trans.rotation;
-                //         instance.scale    = trans.scale;
-
-                //         // write directly into batch using global index
-                //         _batches.begin()->second[i] = instance;
-                //     }
-                // });
                 threads.emplace_back([&, t]() {
-                size_t start = t * entitiesPerThread;
-                size_t end   = std::min(start + entitiesPerThread, numEntities);
+                    size_t start = t * chunkSize;
+                    size_t end = std::min(start + chunkSize, numEntities);
 
-                size_t threadOffset = start * sizeof(InstanceData); // <--- unique per thread
+                    auto it = entitiesBegin;
+                    std::advance(it, start);
 
-                auto it = entitiesBegin;
-                std::advance(it, start);
+                    for (size_t i = start; i < end; ++i, ++it) {
+                        auto entity = *it;
+                        auto& trans = registryView.get<Transform>(entity);
 
-                for (size_t i = start; i < end; ++i, ++it) {
-                    auto& trans = registryView.get<Transform>(*it);
+                //     if (trans.position.x > 0)
+                //     trans.position.x -= 0.1;
+                // if (trans.position.y > 0)
+                //     trans.position.y -= 0.1;
+                // if (trans.position.z > 0)
+                //     trans.position.z -= 0.5;
 
-                    InstanceData instance{};
-                    instance.position = trans.position;
-                    instance.rotation = trans.rotation;
-                    instance.scale    = trans.scale;
 
-                    memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + threadOffset,
-                        &instance,
-                        sizeof(InstanceData));
-                    threadOffset += sizeof(InstanceData);
-                }
-            });
+                        InstanceData instance{};
+                        instance.position = trans.position;
+                        instance.rotation = trans.rotation;
+                        instance.scale    = trans.scale;
+
+                        // write directly into batch using global index
+                        _batches.begin()->second[i] = instance;
+                    }
+                });
             }
-
             // Join all threads
             for (auto& t : threads) t.join();
 
-
-            //  for (auto entity : registryView) {
-            //     auto& meshComponent = registryView.get<MeshComponent>(entity);
-            //     auto& transformComponent = registryView.get<Transform>(entity);
-            //     InstanceData instance{};
-            //     _batches[meshComponent.mesh.get()].push_back(instance);
-            //     break;
-            //  }
-
-
-
-            // for (auto entity : registryView) {
-            //     auto& meshComponent = registryView.get<MeshComponent>(entity);
-            //     auto& transformComponent = registryView.get<Transform>(entity);
-            //     // if (transformComponent.position.x > 0)
-            //     //     transformComponent.position.x -= 0.5;
-            //     // if (transformComponent.position.y > 0)
-            //     //     transformComponent.position.y -= 0.5;
-            //     // if (transformComponent.position.z > 0)
-            //     //     transformComponent.position.z -= 0.5;
-            //     // Build instance data
-            //     InstanceData instance{};
-            //     // instance.model = glm::translate(transformComponent.position);
-            //     // instance.model *= glm::toMat4(transformComponent.rotation);
-            //     // instance.model = glm::scale(instance.model, transformComponent.scale);
-            //     instance.position = transformComponent.position;
-            //     instance.rotation = transformComponent.rotation;
-            //     instance.scale    = transformComponent.scale;
-            //     // instance.position = transformComponent.position;
-            //     // instance.rotation = glm::vec4(
-            //     //     transformComponent.rotation.x,
-            //     //     transformComponent.rotation.y,
-            //     //     transformComponent.rotation.z,
-            //     //     transformComponent.rotation.w
-            //     // );
-            //     // instance.scale = transformComponent.scale;
-
-            //     // Add to batch keyed by mesh
-            //     _batches[meshComponent.mesh.get()].push_back(instance);
-            //     // auto size = sizeof(InstanceData);
-            //     // memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + offset2,
-            //     // static_cast<void*>(&instance),
-            //     // size);
-            //     // offset2 += size;
-            // }
-
-            
-            // // After building _batches
-            // for (auto& [mesh, instances] : _batches) {
-            //     size_t count = instances.size();
-            //     printf("Mesh %p has %zu instances\n", mesh, count);
-            // }
-            auto t1 = Clock::now();
+            //auto t1 = Clock::now();
 
             size_t offset = 0; // starting point in the instance buffer
             for (auto& [mesh, instances] : _batches) {
                 size_t dataSize = instances.size() * sizeof(InstanceData);
-                //size_t dataSize = 100000 * sizeof(InstanceData);
 
                 // Copy CPU-side instances into the persistently mapped GPU buffer
-                // memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + offset,
-                //     instances.data(),
-                //     dataSize);
+                memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + offset,
+                    instances.data(),
+                    dataSize);
                 auto t2 = Clock::now();
 
                 // Save GPU device address for push constants
@@ -1363,7 +1198,7 @@ namespace Engine {
                 pc.vertexBuffer = mesh->meshBuffers.vertexBufferAddress;
                 pc.instanceBuffer = instanceAddress;
 
-                vkCmdPushConstants(cmd, _meshPipelineLayout,
+                vkCmdPushConstants(cmd, _instancedMeshPipelineLayout,
                                 VK_SHADER_STAGE_VERTEX_BIT,
                                 0,
                                 sizeof(pc),
@@ -1376,27 +1211,57 @@ namespace Engine {
                 vkCmdDrawIndexed(cmd,
                                 mesh->surfaces[0].count,    // index count per mesh
                                 instances.size(),           // number of instances
-                                //100000,
                                 mesh->surfaces[0].startIndex,
                                 0,
                                 0);
 
                 //offset += dataSize; // move pointer for the next batch
-                auto t3 = Clock::now();
-                auto ms = [](auto a, auto b) {
-                    return std::chrono::duration<float, std::milli>(b - a).count();
-                };
-                printf("Build: %.2f ms | Upload: %.2f ms | Record: %.2f ms\n",
-                ms(t0,t1), ms(t1,t2), ms(t2,t3));
+                //auto t3 = Clock::now();
+                // auto ms = [](auto a, auto b) {
+                //     return std::chrono::duration<float, std::milli>(b - a).count();
+                // };
+                // printf("Build: %.2f ms | Upload: %.2f ms | Record: %.2f ms\n",
+                // ms(t0,t1), ms(t1,t2), ms(t2,t3));
             }
         }
 
-        // push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
-        // push_constants.worldMatrix = projectionMatrix * viewMatrix * pos1;
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
+        // // Single entity rendering
+        auto registryViewSingles = _registry.view<MeshComponent, Transform, SingleRenderTag>();
 
-        // vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-        // vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-        // vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+          for (auto entity : registryViewSingles) {
+                auto& meshComponent = registryViewSingles.get<MeshComponent>(entity);
+                auto& transformComponent = registryViewSingles.get<Transform>(entity);
+                // TRS Matrix
+                glm::mat4 T = glm::translate(glm::mat4(1.0f), transformComponent.position);
+                glm::mat4 R = glm::mat4_cast(transformComponent.rotation);
+                glm::mat4 S = glm::scale(glm::mat4(1.0f), transformComponent.scale);
+
+                glm::mat4 model = T * R * S;
+
+                GPUDrawPushConstants push_constants;
+                auto meshAssetPtr = meshComponent.mesh.get();
+                push_constants.vertexBuffer = meshAssetPtr->meshBuffers.vertexBufferAddress;
+                push_constants.worldMatrix = projectionMatrix * viewMatrix * model;
+
+                vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+                vkCmdBindIndexBuffer(cmd, meshAssetPtr->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+                vkCmdDrawIndexed(cmd, meshAssetPtr->surfaces[0].count, 1, meshAssetPtr->surfaces[0].startIndex, 0, 0);
+        }
+       // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+        //vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
+    //    glm::mat4 pos1 = glm::translate(glm::vec3(1.0f, 1.0f, 1.0f));
+    //     glm::mat4 pos2 = glm::translate(glm::vec3(3.0f, -1.0f, -1.0f));
+
+    //     GPUDrawPushConstants push_constants;
+    //     push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+    //     push_constants.worldMatrix = projectionMatrix * viewMatrix * pos1;
+
+    //     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+    //     vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    //     vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+
 
         // push_constants.worldMatrix = projectionMatrix * viewMatrix * pos2;
 
@@ -1569,25 +1434,20 @@ namespace Engine {
         });
     }
 
-    void Core::InitMeshPipeline()
-    {
+    void Core::InitMeshPipeline() {
         VkShaderModule triangleFragShader;
         if (!vkutil::load_shader_module("../../../shaders/colored_triangle.frag.spv", _device, &triangleFragShader))
             ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
 
-        //if (!vkutil::load_shader_module("C:\\Users\\CodeGains\\Documents\\Github\\DX11-Engine\\shaders\\tex_image.frag.spv", _device, &triangleFragShader))
-        //    ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
-
         VkShaderModule triangleVertexShader;
-        // if (!vkutil::load_shader_module("../../../shaders/colored_triangle_mesh.vert.spv", _device, &triangleVertexShader))
-        //     ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
-        if (!vkutil::load_shader_module("../../../shaders/batch_color_mesh.vert.spv", _device, &triangleVertexShader))
+        if (!vkutil::load_shader_module("../../../shaders/colored_triangle_mesh.vert.spv", _device, &triangleVertexShader))
             ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
+        // if (!vkutil::load_shader_module("../../../shaders/batch_color_mesh.vert.spv", _device, &triangleVertexShader))
+        //     ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
 
         VkPushConstantRange bufferRange{};
         bufferRange.offset = 0;
-        //bufferRange.size = sizeof(GPUDrawPushConstants);
-        bufferRange.size = sizeof(BatchDrawPushConstants);
+        bufferRange.size = sizeof(GPUDrawPushConstants);
         bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
         VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
@@ -1633,6 +1493,67 @@ namespace Engine {
         _mainDeletionQueue.push_function([&]() {
             vkDestroyPipelineLayout(_device, _meshPipelineLayout, nullptr);
             vkDestroyPipeline(_device, _meshPipeline, nullptr);
+        });
+    }
+
+    void Core::InitInstancedMeshPipeline() {
+        VkShaderModule triangleFragShader;
+        if (!vkutil::load_shader_module("../../../shaders/colored_triangle.frag.spv", _device, &triangleFragShader))
+            ENGINE_LOG_ERROR("Error when building the triangle fragment shader module");
+
+
+        VkShaderModule triangleVertexShader;
+        if (!vkutil::load_shader_module("../../../shaders/batch_color_mesh.vert.spv", _device, &triangleVertexShader))
+            ENGINE_LOG_ERROR("Error when building the triangle vertex shader module");
+
+        VkPushConstantRange bufferRange{};
+        bufferRange.offset = 0;
+        bufferRange.size = sizeof(BatchDrawPushConstants);
+        bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+        pipeline_layout_info.pPushConstantRanges = &bufferRange;
+        pipeline_layout_info.pushConstantRangeCount = 1;
+        pipeline_layout_info.pSetLayouts = &_singleImageDescriptorLayout;
+	    pipeline_layout_info.setLayoutCount = 1;
+
+        VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &_instancedMeshPipelineLayout));
+
+        PipelineBuilder pipelineBuilder;
+
+        //use the triangle layout we created
+        pipelineBuilder._pipelineLayout = _instancedMeshPipelineLayout;
+        //connecting the vertex and pixel shaders to the pipeline
+        pipelineBuilder.set_shaders(triangleVertexShader, triangleFragShader);
+        //it will draw triangles
+        pipelineBuilder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        //filled triangles
+        pipelineBuilder.set_polygon_mode(VK_POLYGON_MODE_FILL);
+        //no backface culling
+        pipelineBuilder.set_cull_mode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+        //no multisampling
+        pipelineBuilder.set_multisampling_none();
+        //no blending
+        pipelineBuilder.disable_blending();
+        //pipelineBuilder.enable_blending_additive();
+
+        pipelineBuilder.disable_depthtest();
+        pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
+
+        //connect the image format we will draw into, from draw image
+        pipelineBuilder.set_color_attachment_format(_drawImage.imageFormat);
+	    pipelineBuilder.set_depth_format(_depthImage.imageFormat);
+
+        //finally build the pipeline
+        _instancedMeshPipeline = pipelineBuilder.build_pipeline(_device);
+
+        //clean structures
+        vkDestroyShaderModule(_device, triangleFragShader, nullptr);
+        vkDestroyShaderModule(_device, triangleVertexShader, nullptr);
+
+        _mainDeletionQueue.push_function([&]() {
+            vkDestroyPipelineLayout(_device, _instancedMeshPipelineLayout, nullptr);
+            vkDestroyPipeline(_device, _instancedMeshPipeline, nullptr);
         });
     }
 
@@ -1716,20 +1637,26 @@ namespace Engine {
         });
 
         testMeshes = LoadGltfMeshes(this,"../../../assets/basicmesh.glb").value();
+        auto tempMeshes = LoadGltfMeshes(this,"../../../assets/tetrahedron.glb").value();
+        testMeshes.insert(
+            testMeshes.end(),              // insert at the end of testMeshes
+            tempMeshes.begin(),             // start of tempMeshes
+            tempMeshes.end()                // end of tempMeshes
+        );
         //for (auto& meshAsset : testMeshes) {
-        int gap = 5;
-        for (int x = 0; x < 100; x++) {
-            for (int y = 0; y < 100; y++) {
-                for (int z = 0; z < 100; z++) {
-                    auto meshEntity = _registry.create();
-                    _registry.emplace<MeshComponent>(meshEntity, testMeshes[0]);
-                    auto transform = Transform();
-                    transform.position = glm::vec3 {x * gap, y * gap,  z * gap};
-                    //transform.scale = glm::vec3 {10.0f, 10.0f, 10.0f};
-                    _registry.emplace<Transform>(meshEntity, transform);
-                }
-            }
-        }
+        // int gap = 5;
+        // for (int x = 0; x < 100; x++) {
+        //     for (int y = 0; y < 100; y++) {
+        //         for (int z = 0; z < 100; z++) {
+        //             auto meshEntity = _registry.create();
+        //             _registry.emplace<MeshComponent>(meshEntity, testMeshes[0]);
+        //             auto transform = Transform();
+        //             transform.position = glm::vec3 {x * gap, y * gap,  z * gap};
+        //             //transform.scale = glm::vec3 {10.0f, 10.0f, 10.0f};
+        //             _registry.emplace<Transform>(meshEntity, transform);
+        //         }
+        //     }
+        // }
        // }
 
         // destroy mesh buffers on shutdown
@@ -1909,6 +1836,10 @@ namespace Engine {
         _systems.push_back(std::make_unique<EcsDebugger>(_registry));
         _systems.push_back(std::make_unique<InputSystem>(_registry, inputEntity, _window.get()));
         _systems.push_back(std::make_unique<CameraSystem>(_registry));
+        auto simulation = std::make_unique<Simulation>(_registry);
+        simulation->Initialize(testMeshes[2], testMeshes[0]); // planet mesh and particle mesh
+        _systems.push_back(std::move(simulation));
+        
 
         //everything went fine
         _isInitialized = true;
@@ -1974,7 +1905,7 @@ namespace Engine {
             //ImGui::End();
             DrawUi();
             for (auto& system : _systems) {
-                system->Draw();
+                system->DrawUi();
             }
             ImGui::Render();
             ImGui::UpdatePlatformWindows();

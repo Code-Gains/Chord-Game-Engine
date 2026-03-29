@@ -24,7 +24,8 @@ public:
     ~EcsDebugger();
 
     void Update(float deltaTime) override;
-    void Draw() override;
+    virtual void DrawUi() override;
+    virtual void Draw() override {};
 
     void Toggle();
 

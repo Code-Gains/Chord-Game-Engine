@@ -15,6 +15,7 @@
 #include <entt/entt.hpp>
 #include "System.h"
 #include "InputSystem.h"
+#include "MeshComponent.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnullability-completeness"
@@ -116,24 +117,24 @@ namespace Engine {
         glm::vec4 sunlightColor;
     };
 
-    struct GeoSurface {
-        uint32_t startIndex;
-        uint32_t count;
-    };
+    // struct GeoSurface {
+    //     uint32_t startIndex;
+    //     uint32_t count;
+    // };
 
-    struct MeshAsset {
-        std::string name;
+    // struct MeshAsset {
+    //     std::string name;
     
-        std::vector<GeoSurface> surfaces;
-        GPUMeshBuffers meshBuffers;
-    };
+    //     std::vector<GeoSurface> surfaces;
+    //     GPUMeshBuffers meshBuffers;
+    // };
     // struct DrawItem {
     //     MeshAsset* mesh;
     //     InstanceData instance;
     // };
-    struct MeshComponent {
-        std::shared_ptr<MeshAsset> mesh;
-    };
+    // struct MeshComponent {
+    //     std::shared_ptr<MeshAsset> mesh;
+    // };
 
 
     typedef struct VkGraphicsPipelineCreateInfo {
@@ -355,11 +356,14 @@ namespace Engine {
 
         void InitTrianglePipeline();
 
+        VkPipelineLayout _instancedMeshPipelineLayout;
         VkPipelineLayout _meshPipelineLayout;
+        VkPipeline _instancedMeshPipeline;
         VkPipeline _meshPipeline;
 
         GPUMeshBuffers rectangle;
 
+        void InitInstancedMeshPipeline();
         void InitMeshPipeline();
         void InitDefaultData();
         std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGltfMeshes(Core* engine, std::filesystem::path filePath);

@@ -27,6 +27,8 @@ add_library(engine STATIC
     System.cpp
     RenderingSystem.cpp
     CameraSystem.cpp
+    Simulation.cpp
+    PhysicsBody.cpp
 )
 
 
