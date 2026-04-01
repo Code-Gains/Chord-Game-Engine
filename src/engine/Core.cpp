@@ -349,60 +349,115 @@ namespace Engine {
         vkDestroyDescriptorSetLayout(_device, _singleImageDescriptorLayout , nullptr);
     }
 
+    // void Core::CreateDrawImages(uint32_t width, uint32_t height)
+    // {
+    //     //draw image size will match the window
+    //     VkExtent3D drawImageExtent = {
+    //         static_cast<uint32_t>(width),
+    //         static_cast<uint32_t>(height),
+    //         1
+    //     };
+
+    //     //hardcoding the draw format to 32 bit float
+    //     _drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+    //     _drawImage.imageExtent = drawImageExtent;
+
+    //     VkImageUsageFlags drawImageUsages{};
+    //     drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    //     drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    //     drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+    //     drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    //     VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
+
+    //     //for the draw image, we want to allocate it from gpu local memory
+    //     VmaAllocationCreateInfo rimg_allocinfo = {};
+    //     rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    //     rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    //     //allocate and create the image
+    //     vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
+
+    //     //build a image-view for the draw image to use for rendering
+    //     VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    //     VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
+
+    //     // //add to deletion queues
+    //     // _mainDeletionQueue.push_function([this]() {
+    //     //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
+    //     //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
+    //     // });
+
+    //     _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
+    //     _depthImage.imageExtent = drawImageExtent;
+    //     VkImageUsageFlags depthImageUsages{};
+    //     depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+    //     VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
+
+    //     //allocate and create the image
+    //     vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
+
+    //     //build a image-view for the draw image to use for rendering
+    //     VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    //     VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
+    // }
+
     void Core::CreateDrawImages(uint32_t width, uint32_t height)
     {
-        //draw image size will match the window
-        VkExtent3D drawImageExtent = {
-            static_cast<uint32_t>(width),
-            static_cast<uint32_t>(height),
-            1
-        };
+        VkExtent3D drawImageExtent = { width, height, 1 };
 
-        //hardcoding the draw format to 32 bit float
-        _drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-        _drawImage.imageExtent = drawImageExtent;
+        // // --------------------------
+        // // MULTISAMPLED COLOR IMAGE
+        // // --------------------------
+        // _msaaColorImage = CreateImage(
+        //     drawImageExtent,
+        //     VK_FORMAT_R16G16B16A16_SFLOAT,
+        //     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        //     VK_IMAGE_USAGE_STORAGE_BIT |
+        //     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        //     VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        //     false,       // no mipmaps
+        //     VK_SAMPLE_COUNT_4_BIT
+        // );
 
-        VkImageUsageFlags drawImageUsages{};
-        drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        // // --------------------------
+        // // MULTISAMPLED DEPTH IMAGE
+        // // --------------------------
+        // _msaaDepthImage = CreateImage(
+        //     drawImageExtent,
+        //     VK_FORMAT_D32_SFLOAT,
+        //     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        //     false,
+        //     VK_SAMPLE_COUNT_4_BIT
+        // );
 
-        VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
+        // --------------------------
+        // SINGLE-SAMPLE COLOR IMAGE (resolve target)
+        // --------------------------
+        _drawImage = CreateImage(
+            drawImageExtent,
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+            VK_IMAGE_USAGE_STORAGE_BIT |
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            false,
+            VK_SAMPLE_COUNT_1_BIT
+        );
 
-        //for the draw image, we want to allocate it from gpu local memory
-        VmaAllocationCreateInfo rimg_allocinfo = {};
-        rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        //allocate and create the image
-        vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
-
-        //build a image-view for the draw image to use for rendering
-        VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-
-        VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
-
-        // //add to deletion queues
-        // _mainDeletionQueue.push_function([this]() {
-        //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
-        //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
-        // });
-
-        _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
-        _depthImage.imageExtent = drawImageExtent;
-        VkImageUsageFlags depthImageUsages{};
-        depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-        VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
-
-        //allocate and create the image
-        vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
-
-        //build a image-view for the draw image to use for rendering
-        VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-        VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
+        // --------------------------
+        // SINGLE-SAMPLE DEPTH IMAGE (optional fallback)
+        // --------------------------
+        _depthImage = CreateImage(
+            drawImageExtent,
+            VK_FORMAT_D32_SFLOAT,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            false,
+            VK_SAMPLE_COUNT_1_BIT
+        );
     }
 
     void Core::CleanupDrawImages()
@@ -412,6 +467,12 @@ namespace Engine {
 
         vkDestroyImageView(_device, _depthImage.imageView, nullptr);
         vmaDestroyImage(_allocator, _depthImage.image, _depthImage.allocation);
+
+        // vkDestroyImageView(_device, _msaaColorImage.imageView, nullptr);
+        // vmaDestroyImage(_allocator, _msaaColorImage.image, _msaaColorImage.allocation);
+
+        // vkDestroyImageView(_device, _msaaDepthImage.imageView, nullptr);
+        // vmaDestroyImage(_allocator, _msaaDepthImage.image, _msaaDepthImage.allocation);
     }
 
     void Core::InitPipelines()
@@ -693,7 +754,7 @@ namespace Engine {
         return newSurface;
     }
 
-    AllocatedImage Core::CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+    AllocatedImage Core::CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped, VkSampleCountFlagBits samples)
     {
         AllocatedImage newImage;
         newImage.imageFormat = format;
@@ -728,40 +789,46 @@ namespace Engine {
         return newImage;
     }
 
-    AllocatedImage Core::CreateImage(void *data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+    AllocatedImage Core::CreateImage(
+        void* data,
+        VkExtent3D size,
+        VkFormat format,
+        VkImageUsageFlags usage,
+        bool mipmapped,
+        VkSampleCountFlagBits samples) // <-- added
     {
-        size_t data_size = size.depth * size.width * size.height * 4;
-        AllocatedBuffer uploadbuffer = CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        AllocatedImage newImage;
+        newImage.imageFormat = format;
+        newImage.imageExtent = size;
 
-        memcpy(uploadbuffer.info.pMappedData, data, data_size);
+        VkImageCreateInfo img_info = vkinit::image_create_info(format, usage, size);
+        img_info.samples = samples; // <-- use MSAA sample count
 
-        AllocatedImage new_image = CreateImage(size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+        if (mipmapped) {
+            img_info.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(size.width, size.height)))) + 1;
+        }
 
-        ImmediateSubmit([&](VkCommandBuffer cmd) {
-            vkutil::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        // always allocate images on dedicated GPU memory
+        VmaAllocationCreateInfo allocinfo = {};
+        allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        allocinfo.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-            VkBufferImageCopy copyRegion = {};
-            copyRegion.bufferOffset = 0;
-            copyRegion.bufferRowLength = 0;
-            copyRegion.bufferImageHeight = 0;
+        // allocate and create the image
+        VK_CHECK(vmaCreateImage(_allocator, &img_info, &allocinfo, &newImage.image, &newImage.allocation, nullptr));
 
-            copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            copyRegion.imageSubresource.mipLevel = 0;
-            copyRegion.imageSubresource.baseArrayLayer = 0;
-            copyRegion.imageSubresource.layerCount = 1;
-            copyRegion.imageExtent = size;
+        // select correct aspect
+        VkImageAspectFlags aspectFlag = VK_IMAGE_ASPECT_COLOR_BIT;
+        if (format == VK_FORMAT_D32_SFLOAT || format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT) {
+            aspectFlag = VK_IMAGE_ASPECT_DEPTH_BIT;
+        }
 
-            // copy the buffer into the image
-            vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                &copyRegion);
+        // build an image-view
+        VkImageViewCreateInfo view_info = vkinit::imageview_create_info(format, newImage.image, aspectFlag);
+        view_info.subresourceRange.levelCount = img_info.mipLevels;
 
-            vkutil::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-            });
+        VK_CHECK(vkCreateImageView(_device, &view_info, nullptr, &newImage.imageView));
 
-        DestroyBuffer(uploadbuffer);
-
-        return new_image;
+        return newImage;
     }
 
     void Core::DestroyImage(const AllocatedImage &img)
@@ -789,15 +856,18 @@ namespace Engine {
         frameData._frameDescriptors.clear_pools(_device);
         VK_CHECK(vkResetFences(_device, 1, &frameData._renderFence));
 
-        // pick per frame semaphore
+        // // pick per frame semaphore
         VkSemaphore imageAvailableSemaphore = _imageAvailableSemaphores[_frameNumber % FRAME_OVERLAP];
 	    uint32_t swapchainImageIndex;
         VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX,
             imageAvailableSemaphore, nullptr, &swapchainImageIndex);
-        if (result == VK_SUBOPTIMAL_KHR) {
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
             RecreateSwapchain(_window->GetWidth(), _window->GetHeight());
-            VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX,
-            imageAvailableSemaphore, nullptr, &swapchainImageIndex));
+            result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX,
+                imageAvailableSemaphore, nullptr, &swapchainImageIndex);
+            if (result != VK_SUCCESS) {
+                throw std::runtime_error("Failed to recreate swapchain image on VK_ERROR_OUT_OF_DATE_KHR or VK_SUBOPTIMAL_KHR!");
+            }
         }
 
         // -----------------------------------------------------------------------
@@ -874,7 +944,17 @@ namespace Engine {
         presentInfo.pWaitSemaphores = &renderFinishedSemaphore;
         presentInfo.waitSemaphoreCount = 1;
 
-        VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
+        //VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
+        VkResult presentResult = vkQueuePresentKHR(_graphicsQueue, &presentInfo);
+        if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+            int width = 0, height = 0;
+            glfwGetFramebufferSize(_window->GetNativeHandle(), &width, &height);
+            glfwWaitEvents();
+            RecreateSwapchain(width, height);
+        }
+        else if (presentResult != VK_SUCCESS) {
+            throw std::runtime_error("Failed to present swapchain image!");
+        }
         // increase the number of frames drawn
         _frameNumber++;
     }
@@ -926,8 +1006,17 @@ namespace Engine {
 
         // //make a clear-color from frame number. This will flash with a 120 frame period.
         VkClearColorValue clearValue;
-        float flash = std::abs(std::sin(_frameNumber / 120.f));
-        clearValue = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+        auto registryView = _registry.view<Camera>();
+
+        if (!registryView.empty()) {
+            auto cameraEntity = *registryView.begin();
+            auto& camera = registryView.get<Camera>(cameraEntity);
+
+            clearValue.float32[0] = camera.clearColor.r;
+            clearValue.float32[1] = camera.clearColor.g;
+            clearValue.float32[2] = camera.clearColor.b;
+            clearValue.float32[3] = camera.clearColor.a;
+        }
 
         VkImageSubresourceRange clearRange = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
         
@@ -1130,7 +1219,7 @@ namespace Engine {
 
 
             size_t numThreads = std::thread::hardware_concurrency();
-            size_t numEntities = 1000000;
+            size_t numEntities = std::distance(registryView.begin(), registryView.end()); //1000000; // doesnt matter if it is accurate since this is just for load balancing
             size_t chunkSize = (numEntities + numThreads - 1) / numThreads;
 
 
@@ -1140,7 +1229,7 @@ namespace Engine {
                 batch.resize(numEntities);
                 break;
             }
-
+            std::vector<std::unordered_map<MeshAsset*, std::vector<InstanceData>>> threadLocalBatches(numThreads);
             std::vector<std::thread> threads;
 
             auto entitiesBegin = registryView.begin();
@@ -1407,7 +1496,8 @@ namespace Engine {
         //no backface culling
         pipelineBuilder.set_cull_mode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
         //no multisampling
-        pipelineBuilder.set_multisampling_none();
+        //pipelineBuilder.set_multisampling_none();
+        
         //no blending
         pipelineBuilder.disable_blending();
         //pipelineBuilder.enable_blending_additive();
@@ -1533,6 +1623,7 @@ namespace Engine {
         pipelineBuilder.set_cull_mode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
         //no multisampling
         pipelineBuilder.set_multisampling_none();
+        //pipelineBuilder.set_multisampling(VK_SAMPLE_COUNT_4_BIT);
         //no blending
         pipelineBuilder.disable_blending();
         //pipelineBuilder.enable_blending_additive();
@@ -1847,6 +1938,9 @@ namespace Engine {
 
     void Core::Run() {
         constexpr auto targetMinimizedFrameDuration = std::chrono::milliseconds(); // 20 FPS while minimized
+        constexpr float fixedDelta = 1.0f / 60.0f; // 60 Hertz
+        float fixedUpdateAccumulator = 0.0f;
+
         ENGINE_LOG_INFO("Starting Engine Main Loop.");
         bool running = true;
 
@@ -1859,9 +1953,17 @@ namespace Engine {
             //set for next frame
             previousFrameTime = frameStartTime;
 
+            // fixed update loop TODO verify if it should run before minimize check
             _window->PollEvents();
+            fixedUpdateAccumulator += _deltaTime;
+            if (fixedUpdateAccumulator >= fixedDelta) {
+                for (auto& system : _systems) {
+                    system->FixedUpdate(fixedDelta);
+                }
+                fixedUpdateAccumulator -= fixedDelta;
+            }
 
-            // Update
+            // update loop
             if (_window->WasResized()) {
                 uint32_t width = _window->GetWidth();
                 uint32_t height = _window->GetHeight();

@@ -6,6 +6,7 @@ struct Camera {
     float aspectRatio = 16.0f / 9.0f; // TODO 
     float nearPlane = 0.1f;
     float farPlane = 100000.0f;
+    glm::vec4 clearColor {0.1f, 0.1f, 0.5f, 1.0f};
 
     // looking along -Z initially
     glm::vec3 direction { 0.0f, 0.0f, -1.0f };

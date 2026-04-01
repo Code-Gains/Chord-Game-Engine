@@ -27,17 +27,22 @@ void CameraSystem::Update(float deltaTime)
         auto& camera = cameraView.get<Camera>(entity);
         auto& transform = cameraView.get<Transform>(entity);
 
-        float speed = 50.0f;
+        float speed = 100.0f;
         float sensitivity = 0.5f;
-        camera.yaw   += input.deltaX * sensitivity;
-        camera.pitch -= input.deltaY * sensitivity; // invert Y
-        camera.pitch = glm::clamp(camera.pitch, -89.0f, 89.0f);
+        if (input.mouseButtons[GLFW_MOUSE_BUTTON_RIGHT].held) {
+            float sensitivity = 0.5f;
 
-        glm::vec3 dir;
-        dir.x = cos(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
-        dir.y = sin(glm::radians(camera.pitch));
-        dir.z = sin(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
-        camera.direction = glm::normalize(dir);
+            camera.yaw   += input.deltaX * sensitivity;
+            camera.pitch -= input.deltaY * sensitivity; // invert Y
+            camera.pitch = glm::clamp(camera.pitch, -89.0f, 89.0f);
+
+            glm::vec3 dir;
+            dir.x = cos(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
+            dir.y = sin(glm::radians(camera.pitch));
+            dir.z = sin(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
+
+            camera.direction = glm::normalize(dir);
+        }
 
         // glm::vec3 dir;
         // dir.x = cos(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));

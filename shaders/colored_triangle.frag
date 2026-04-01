@@ -56,14 +56,15 @@ void main()
 	// float colorVal = d * 0.5 + 0.5; // [0, 1]
 
 	// outFragColor = vec4(vec3(colorVal), 1.0);
-	// vec3 lightDir = normalize(inPos * -1);
-	// float light = dot(lightDir, inNormal);
-	// outFragColor = vec4(light, light, light, 1.0);
-
-	vec3 lightDir = normalize(-inPos);            // from fragment to center
-	vec3 N = normalize(inNormal);                // world normal
-	float diffuse = max(dot(N, lightDir), 0.0);  // standard Lambert
-	outFragColor = vec4(vec3(diffuse), 1.0);
+	vec3 lightDir = normalize(-inPos); // from fragment to center
+	vec3 N = normalize(inNormal); // world normal
+	float ambient = 0.005; // small light for shadows
+	float diffuse = max(dot(N, lightDir), 0.0); // standard Lambert
+	float distance = length(inPos);
+	float attenuation = 1.0 / (1.0 + 0.00001 * distance * distance);
+	//float attenuation = 1.0 / (1.0 + 0.0001 * distance * distance);
+	float intensity = (ambient + diffuse) * attenuation;
+	outFragColor = vec4(vec3(intensity), 1.0);
 
 
 }

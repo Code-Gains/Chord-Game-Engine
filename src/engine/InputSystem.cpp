@@ -14,6 +14,11 @@ InputSystem::InputSystem(entt::registry& registry, entt::entity inputEntity, Eng
         GLFW_KEY_RIGHT_ALT,
         GLFW_KEY_ENTER
     };
+     _monitoredMouseButtons = {
+        GLFW_MOUSE_BUTTON_LEFT,
+        GLFW_MOUSE_BUTTON_RIGHT,
+        GLFW_MOUSE_BUTTON_MIDDLE
+    };
 }
 
 void InputSystem::Update(float deltaTime)
@@ -33,6 +38,17 @@ void InputSystem::Update(float deltaTime)
         KeyState& state = inputState.keys[key];
 
         bool currentlyPressed = glfwGetKey(_window, key) == GLFW_PRESS;
+
+        state.pressed  = currentlyPressed && !state.held;
+        state.released = !currentlyPressed && state.held;
+        state.held     = currentlyPressed;
+    }
+
+    // Update mouse button states
+    for (int button : _monitoredMouseButtons) {
+        KeyState& state = inputState.mouseButtons[button];
+
+        bool currentlyPressed = glfwGetMouseButton(_window, button) == GLFW_PRESS;
 
         state.pressed  = currentlyPressed && !state.held;
         state.released = !currentlyPressed && state.held;

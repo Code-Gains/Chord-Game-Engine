@@ -55,6 +55,17 @@ void EcsDebugger::DrawUi()
                 );
             }
         }
+         // Mouse buttons
+        for (const auto& [button, state] : input.mouseButtons) {
+            if (state.held || state.pressed || state.released) {
+                ImGui::Text("Mouse %d | H:%d P:%d R:%d",
+                    button,
+                    state.held,
+                    state.pressed,
+                    state.released
+                );
+            }
+        }
     }
 	ImGui::End();
 }

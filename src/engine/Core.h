@@ -325,8 +325,8 @@ namespace Engine {
         void DestroyBuffer(const AllocatedBuffer& buffer);
         GPUMeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
-        AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-        AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+        AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
+        AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
         void DestroyImage(const AllocatedImage& img);
 
 
@@ -409,6 +409,8 @@ namespace Engine {
         VkDevice _device; // Vulkan device for commands
         VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
         AllocatedImage _drawImage;
+        AllocatedImage _msaaColorImage;
+        AllocatedImage _msaaDepthImage;
         AllocatedImage _depthImage;
         MaterialInstance defaultData;
         GLTFMetallic_Roughness metalRoughMaterial;

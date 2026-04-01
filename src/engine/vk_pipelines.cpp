@@ -228,6 +228,18 @@ void PipelineBuilder::enable_depthtest(bool depthWriteEnable, VkCompareOp op)
     _depthStencil.minDepthBounds = 0.f;
     _depthStencil.maxDepthBounds = 1.f;
 }
+// void PipelineBuilder::set_multisampling(VkSampleCountFlagBits samples)
+// {
+//     _multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+//     _multisampling.pNext = nullptr;
+//     _multisampling.flags = 0;
+//     _multisampling.rasterizationSamples = samples;
+//     _multisampling.sampleShadingEnable = VK_FALSE; // optional: enable per-sample shading if needed
+//     _multisampling.minSampleShading = 1.0f;
+//     _multisampling.pSampleMask = nullptr;
+//     _multisampling.alphaToCoverageEnable = VK_FALSE;
+//     _multisampling.alphaToOneEnable = VK_FALSE;
+// }
 //< depth_enable
 
 //> load_shader

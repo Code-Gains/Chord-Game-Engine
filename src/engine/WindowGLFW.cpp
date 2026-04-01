@@ -88,6 +88,7 @@ namespace Engine {
     }
     void WindowGLFW::ToggleMaximize()
     {
+        _resized = true; // force to recreate swapchain and images
         if (!_isFullscreen) {
             glfwGetWindowPos(_window, &_windowedX, &_windowedY);
             glfwGetWindowSize(_window, &_windowedWidth, &_windowedHeight);
