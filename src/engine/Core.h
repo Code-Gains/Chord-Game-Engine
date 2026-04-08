@@ -295,6 +295,7 @@ namespace Engine {
 	    void DestroySwapchain();
         void UpdateDrawImageDescriptor();
         void CleanupDrawImageDescriptors();
+        void CreateScreenshotBuffer();
 
 
 
@@ -398,6 +399,11 @@ namespace Engine {
         AllocatedBuffer _instanceBuffer;
         float _timestampPeriod = 0.0f;
 
+        // screenshot
+        VkBuffer _screenshotBuffer;
+        VkDeviceMemory _screenshotMemory;
+        bool _captureScreenShotPng = true;
+
     public:
         Core() = default;
         void Init();
@@ -414,6 +420,7 @@ namespace Engine {
         AllocatedImage _depthImage;
         MaterialInstance defaultData;
         GLTFMetallic_Roughness metalRoughMaterial;
-        //Camera camera;
+        // Getters
+        entt::registry& GetRegistry();
     };
 } // namespace Engine

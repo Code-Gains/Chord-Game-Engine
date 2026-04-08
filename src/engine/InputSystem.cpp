@@ -12,7 +12,9 @@ InputSystem::InputSystem(entt::registry& registry, entt::entity inputEntity, Eng
         GLFW_KEY_SPACE,
         GLFW_KEY_LEFT_ALT,
         GLFW_KEY_RIGHT_ALT,
-        GLFW_KEY_ENTER
+        GLFW_KEY_ENTER,
+        GLFW_KEY_SPACE,
+        GLFW_KEY_LEFT_SHIFT
     };
      _monitoredMouseButtons = {
         GLFW_MOUSE_BUTTON_LEFT,

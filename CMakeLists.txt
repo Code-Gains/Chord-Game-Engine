@@ -119,10 +119,11 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(entt)
 
 # ---------------------
-# Add engine + editor
+# Add src folders
 # ---------------------
 add_subdirectory(src/engine)
 add_subdirectory(src/editor)
+#add_subdirectory(src/simulation)
 
 # ---------------------
 # Shaders

@@ -26,4 +26,7 @@ struct Camera {
         projectionMatrix[1][1] *= -1; // Vulkan Y coordinate correction
         return projectionMatrix;
     }
+
+    // controls
+    float speed = 100.0f;
 };

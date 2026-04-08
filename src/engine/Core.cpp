@@ -2068,6 +2068,11 @@ namespace Engine {
         _window->ShutdownGLFW();
     }
 
+    entt::registry &Core::GetRegistry()
+    {
+        return _registry;
+    }
+
     void DescriptorLayoutBuilder::AddBinding(uint32_t binding, VkDescriptorType type) {
         VkDescriptorSetLayoutBinding newbind {};
         newbind.binding = binding;

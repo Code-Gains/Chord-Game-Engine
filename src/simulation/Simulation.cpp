@@ -947,3 +947,10 @@ void Simulation::InitializeSphereSimulation()
     _registry.emplace<Attractor>(star);
     _registry.emplace<SingleRenderTag>(star);
 }
+
+int main () {
+    Engine::Core core;
+    core.Init();
+    core.Run();
+    return 0;
+}

@@ -27,7 +27,7 @@ void CameraSystem::Update(float deltaTime)
         auto& camera = cameraView.get<Camera>(entity);
         auto& transform = cameraView.get<Transform>(entity);
 
-        float speed = 100.0f;
+        float speed = camera.speed;
         float sensitivity = 0.5f;
         if (input.mouseButtons[GLFW_MOUSE_BUTTON_RIGHT].held) {
             float sensitivity = 0.5f;
@@ -64,5 +64,11 @@ void CameraSystem::Update(float deltaTime)
 
         if (input.keys[GLFW_KEY_D].held)
             transform.position += right * speed * deltaTime;
+
+        // Vertical movement
+        if (input.keys[GLFW_KEY_SPACE].held)
+            transform.position += camera.up * speed * deltaTime;
+        if (input.keys[GLFW_KEY_LEFT_SHIFT].held)
+            transform.position -= camera.up * speed * deltaTime;
     }
 }
