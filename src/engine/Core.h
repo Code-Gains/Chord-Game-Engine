@@ -368,8 +368,6 @@ namespace Engine {
         void InitMeshPipeline();
         void InitDefaultData();
         std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGltfMeshes(Core* engine, std::filesystem::path filePath);
-        
-        std::vector<std::shared_ptr<MeshAsset>> testMeshes;
 
 
         AllocatedImage _whiteImage;
@@ -387,8 +385,6 @@ namespace Engine {
 
         // Systems
         //InputSystem _inputSystem;
-
-        std::vector<std::unique_ptr<System>> _systems;
 
         // update trackers
         float _deltaTime = 0.0f;
@@ -422,5 +418,9 @@ namespace Engine {
         GLTFMetallic_Roughness metalRoughMaterial;
         // Getters
         entt::registry& GetRegistry();
+
+        // TODO think how to structure public private vars
+        std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
+        std::vector<std::unique_ptr<System>> _systems;
     };
 } // namespace Engine

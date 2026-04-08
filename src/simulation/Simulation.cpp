@@ -1,4 +1,5 @@
 #include "Simulation.h"
+#include "Core.h"
 #include <glm/gtc/random.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
@@ -951,6 +952,12 @@ void Simulation::InitializeSphereSimulation()
 int main () {
     Engine::Core core;
     core.Init();
+
+    auto& registry = core.GetRegistry();
+    auto simulation = std::make_unique<Simulation>(registry);
+    simulation->Initialize(core._testMeshes[2], core._testMeshes[0]); // planet mesh and particle mesh
+    core._systems.push_back(std::move(simulation));
+    
     core.Run();
     return 0;
 }

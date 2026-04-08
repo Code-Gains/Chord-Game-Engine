@@ -2,11 +2,11 @@ add_executable(simulation
     Simulation.cpp
 )
 
-target_compile_definitions(editor PRIVATE
+target_compile_definitions(simulation PRIVATE
     $<$<CONFIG:Debug>:DEBUG>
 )
 
-target_include_directories(editor
+target_include_directories(simulation
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..       # points to src/
         ${CMAKE_CURRENT_SOURCE_DIR}/../engine # engine headers
@@ -15,7 +15,7 @@ target_include_directories(editor
 
 target_link_libraries(simulation
     PRIVATE 
-        simulation
+        engine
         imgui
 )
 

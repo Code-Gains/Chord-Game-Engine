@@ -36,7 +36,6 @@ using Clock = std::chrono::high_resolution_clock;
 
 // ECS PORT
 #include "EcsDebugger.h"
-#include "Simulation.h"
 
 namespace Engine {
 #ifndef NDEBUG
@@ -1193,7 +1192,7 @@ namespace Engine {
         //         transformComponent.rotation = deltaRot * transformComponent.rotation;
         //         glm::mat4 rotationMat = glm::toMat4(transformComponent.rotation);
 
-        //        // push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+        //        // push_constants.vertexBuffer = _testMeshes[2]->meshBuffers.vertexBufferAddress;
         //         push_constants.vertexBuffer = meshComponent.mesh.get()->meshBuffers.vertexBufferAddress;
         //         push_constants.worldMatrix = projectionMatrix * viewMatrix * translation * rotationMat;
 
@@ -1344,20 +1343,20 @@ namespace Engine {
     //     glm::mat4 pos2 = glm::translate(glm::vec3(3.0f, -1.0f, -1.0f));
 
     //     GPUDrawPushConstants push_constants;
-    //     push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+    //     push_constants.vertexBuffer = _testMeshes[2]->meshBuffers.vertexBufferAddress;
     //     push_constants.worldMatrix = projectionMatrix * viewMatrix * pos1;
 
     //     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-    //     vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-    //     vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+    //     vkCmdBindIndexBuffer(cmd, _testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    //     vkCmdDrawIndexed(cmd, _testMeshes[2]->surfaces[0].count, 1, _testMeshes[2]->surfaces[0].startIndex, 0, 0);
 
 
         // push_constants.worldMatrix = projectionMatrix * viewMatrix * pos2;
 
 
         // vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-        // vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-        // vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+        // vkCmdBindIndexBuffer(cmd, _testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        // vkCmdDrawIndexed(cmd, _testMeshes[2]->surfaces[0].count, 1, _testMeshes[2]->surfaces[0].startIndex, 0, 0);
         vkCmdEndRendering(cmd);
     }
 
@@ -1727,20 +1726,20 @@ namespace Engine {
             DestroyBuffer(rectangle.vertexBuffer);
         });
 
-        testMeshes = LoadGltfMeshes(this,"../../../assets/basicmesh.glb").value();
+        _testMeshes = LoadGltfMeshes(this,"../../../assets/basicmesh.glb").value();
         auto tempMeshes = LoadGltfMeshes(this,"../../../assets/tetrahedron.glb").value();
-        testMeshes.insert(
-            testMeshes.end(),              // insert at the end of testMeshes
+        _testMeshes.insert(
+            _testMeshes.end(),              // insert at the end of _testMeshes
             tempMeshes.begin(),             // start of tempMeshes
             tempMeshes.end()                // end of tempMeshes
         );
-        //for (auto& meshAsset : testMeshes) {
+        //for (auto& meshAsset : _testMeshes) {
         // int gap = 5;
         // for (int x = 0; x < 100; x++) {
         //     for (int y = 0; y < 100; y++) {
         //         for (int z = 0; z < 100; z++) {
         //             auto meshEntity = _registry.create();
-        //             _registry.emplace<MeshComponent>(meshEntity, testMeshes[0]);
+        //             _registry.emplace<MeshComponent>(meshEntity, _testMeshes[0]);
         //             auto transform = Transform();
         //             transform.position = glm::vec3 {x * gap, y * gap,  z * gap};
         //             //transform.scale = glm::vec3 {10.0f, 10.0f, 10.0f};
@@ -1752,7 +1751,7 @@ namespace Engine {
 
         // destroy mesh buffers on shutdown
         _mainDeletionQueue.push_function([&]() {
-            for (auto& mesh : testMeshes) {
+            for (auto& mesh : _testMeshes) {
                 DestroyBuffer(mesh->meshBuffers.vertexBuffer);
                 DestroyBuffer(mesh->meshBuffers.indexBuffer);
             }
@@ -1927,9 +1926,6 @@ namespace Engine {
         _systems.push_back(std::make_unique<EcsDebugger>(_registry));
         _systems.push_back(std::make_unique<InputSystem>(_registry, inputEntity, _window.get()));
         _systems.push_back(std::make_unique<CameraSystem>(_registry));
-        auto simulation = std::make_unique<Simulation>(_registry);
-        simulation->Initialize(testMeshes[2], testMeshes[0]); // planet mesh and particle mesh
-        _systems.push_back(std::move(simulation));
         
 
         //everything went fine
