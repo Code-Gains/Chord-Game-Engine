@@ -2,6 +2,12 @@ add_executable(simulation
     Simulation.cpp
 )
 
+if(WIN32)
+    target_sources(simulation PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../assets/app.rc
+    )
+endif()
+
 target_compile_definitions(simulation PRIVATE
     $<$<CONFIG:Debug>:DEBUG>
 )
