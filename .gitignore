@@ -1,48 +1,59 @@
-# Prerequisites
-*.d
+# =====================
+# Build directories
+# =====================
+build/
+build-*/
+cmake-build-*/
+out/
 
-# Compiled Object files
-*.slo
-*.lo
+# =====================
+# CMake generated
+# =====================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+
+# =====================
+# Ninja
+# =====================
+.ninja_deps
+.ninja_log
+build.ninja
+rules.ninja
+
+# =====================
+# OS / editor junk
+# =====================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+
+# =====================
+# Compiler output
+# =====================
 *.o
 *.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
+*.lo
 *.a
-
-# Executables
+*.lib
+*.dll
+*.so
+*.so.*
+*.dylib
 *.exe
-*.out
-*.app
+*.pdb
+*.ilk
 
-x64
+# =====================
+# Vulkan / shaders
+# =====================
+*.spv
 
-# Directories
-.vs/
-Binaries/
-
-# Files
-*.vcxproj
-*.vcxproj.user
-*.vcxproj.filters
-*.sln
+# =====================
+# Logs
+# =====================
 *.log
-Makefile
-
-# Exclude
-!Vendor/Binaries
