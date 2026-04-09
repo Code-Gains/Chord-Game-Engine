@@ -345,6 +345,123 @@ void Simulation::FixedUpdate(float deltaTime)
     }
 }
 
+// void Simulation::FixedUpdate(float deltaTime)
+// {
+//     deltaTime *= _timeScale;
+
+//     auto& pool = Engine::Core::GetThreadPool();
+
+//     // all attractors
+//     auto attractorView = _registry.view<Transform, PhysicsBody, Attractor>();
+//     // all particles
+//     auto particleView = _registry.view<Transform, PhysicsBody>(entt::exclude<Attractor>);
+
+//     size_t numAttractors = std::distance(attractorView.begin(), attractorView.end());
+//     size_t numParticles = std::distance(particleView.begin(), particleView.end());
+
+//     // --- Attractor-Attractor interactions ---
+//     size_t attractorThreads = pool.threadCount;
+//     size_t chunkSizeA = (numAttractors + attractorThreads - 1) / attractorThreads;
+
+//     auto attractorsBegin = attractorView.begin();
+
+//     for (size_t t = 0; t < attractorThreads; ++t) {
+//         pool.Enqueue([&, t]() {
+//             size_t start = t * chunkSizeA;
+//             size_t end = std::min(start + chunkSizeA, numAttractors);
+
+//             auto itA = attractorsBegin;
+//             std::advance(itA, start);
+
+//             for (size_t i = start; i < end; ++i, ++itA) {
+//                 auto entityA = *itA;
+//                 auto& transformA = attractorView.get<Transform>(entityA);
+//                 auto& bodyA = attractorView.get<PhysicsBody>(entityA);
+
+//                 auto itB = itA;
+//                 ++itB;
+//                 for (; itB != attractorView.end(); ++itB) {
+//                     auto entityB = *itB;
+//                     auto& transformB = attractorView.get<Transform>(entityB);
+//                     auto& bodyB = attractorView.get<PhysicsBody>(entityB);
+
+//                     glm::vec3 distVec = transformB.position - transformA.position;
+//                     float eps = 0.001f;
+//                     float dist2 = glm::dot(distVec, distVec) + eps;
+//                     glm::vec3 dir = glm::normalize(distVec);
+
+//                     float force = (bodyA.mass * bodyB.mass) / dist2;
+//                     glm::vec3 accelA = dir * (force / bodyA.mass);
+//                     glm::vec3 accelB = -dir * (force / bodyB.mass);
+
+//                     bodyA.velocity += accelA * deltaTime;
+//                     bodyB.velocity += accelB * deltaTime;
+//                 }
+//             }
+//         });
+//     }
+
+//     pool.Wait(); // wait for attractor-attractor threads
+
+//     // --- Attractor-Particle interactions ---
+//     size_t particleThreads = pool.threadCount;
+//     size_t chunkSizeP = (numParticles + particleThreads - 1) / particleThreads;
+
+//     auto particlesBegin = particleView.begin();
+
+//     for (size_t t = 0; t < particleThreads; ++t) {
+//         pool.Enqueue([&, t]() {
+//             size_t start = t * chunkSizeP;
+//             size_t end = std::min(start + chunkSizeP, numParticles);
+
+//             auto itP = particlesBegin;
+//             std::advance(itP, start);
+
+//             for (size_t i = start; i < end; ++i, ++itP) {
+//                 auto particleEntity = *itP;
+//                 auto& particleTransform = particleView.get<Transform>(particleEntity);
+//                 auto& particleBody = particleView.get<PhysicsBody>(particleEntity);
+
+//                 for (auto attractorEntity : attractorView) {
+//                     auto& attractorTransform = attractorView.get<Transform>(attractorEntity);
+//                     auto& attractorBody = attractorView.get<PhysicsBody>(attractorEntity);
+
+//                     glm::vec3 distVec = attractorTransform.position - particleTransform.position;
+//                     float eps = 0.001f;
+//                     float dist2 = glm::dot(distVec, distVec) + eps;
+//                     glm::vec3 dir = glm::normalize(distVec);
+//                     float force = attractorBody.mass / dist2;
+
+//                     if (_pulseEnabled) {
+//                         float distance = glm::length(distVec) + 0.001f;
+//                         float pulseForce = _pulseStrength / distance;
+//                         particleBody.velocity += -dir * pulseForce;
+//                     }
+
+//                     particleBody.velocity += dir * force * deltaTime;
+//                 }
+//             }
+//         });
+//     }
+
+//     pool.Wait(); // wait for particle threads
+
+//     _pulseEnabled = false;
+
+//     // --- Update positions (can also be parallelized if needed) ---
+//     for (auto entity : attractorView) {
+//         auto& t = attractorView.get<Transform>(entity);
+//         auto& body = attractorView.get<PhysicsBody>(entity);
+//         t.position += body.velocity * deltaTime;
+//     }
+
+//     for (auto entity : particleView) {
+//         auto& t = particleView.get<Transform>(entity);
+//         auto& body = particleView.get<PhysicsBody>(entity);
+//         t.position += body.velocity * deltaTime;
+//     }
+// }
+
 void Simulation::DrawUi()
 {
     ImGui::Begin("Simulation");
@@ -360,6 +477,10 @@ void Simulation::DrawUi()
     auto& camera = cameraView.get<Camera>(entity);
     ImGui::Text("Camera Speed");
     ImGui::SliderFloat("##CameraSpeed", &camera.speed, 50.0f, 500.0f);
+    // Screenshot request button
+    if (ImGui::Button("Take Screenshot")) {
+        camera.screenshotRequested = true;
+    }
     ImGui::Separator();
     ImGui::Text("Live Simulation Parameters:");
     ImGui::Text("Time Scale");
@@ -414,6 +535,18 @@ void Simulation::DrawUi()
         ImGui::Text("Clear Color");
         ImGui::ColorEdit4("##ClearColor", glm::value_ptr(camera.clearColor));
     }
+
+    ImGui::Separator();
+    ImGui::Text("Pulse Settings");
+
+    // Pulse strength (repulsion magnitude)
+    ImGui::Text("Pulse Strength");
+    ImGui::SliderFloat("##PulseStrength", &_pulseStrength, 0.0f, 10000.0f);
+
+    if (ImGui::Button("Outward Pulse")) {
+        _pulseEnabled = true;
+    }
+
     ImGui::Separator();
 
     ImGui::Text("Simulation Type");
@@ -422,15 +555,7 @@ void Simulation::DrawUi()
     if (ImGui::Combo("##SimulationType", &currentTypeIndex, simTypes, IM_ARRAYSIZE(simTypes))) {
         _currentSimulationType = static_cast<SimulationType>(currentTypeIndex);
     }
-
-    ImGui::Separator();
-    ImGui::Text("Pulse Settings");
-
-    // Enable/disable pulse
-    ImGui::Checkbox("Enable Pulse", &_pulseEnabled);
-
-    // Pulse strength (repulsion magnitude)
-    ImGui::SliderFloat("Pulse Strength", &_pulseStrength, 0.0f, 10000.0f);
+    
     // Reset button
     if (ImGui::Button("Reset Simulation")) {
         ResetSimulation();  // call your reset function
@@ -687,10 +812,10 @@ void Simulation::InitializeDisplacedRingsSimulation()
     // CreateOrbitalDisk(rng, 10000, 500.0f, 550.0f, 10.0f, attractorMass);
 
     CreateOrbitalDisk(rng, 10000, 50.0f, 70.0f, 10.0f, attractorMass, 20.0f);
-    CreateOrbitalDisk(rng, 10000, 80.0f, 100.0f, 10.0f, attractorMass, 20.0f);
-    CreateOrbitalDisk(rng, 10000, 110.0f, 130.0f, 10.0f, attractorMass, 20.0f);
-    CreateOrbitalDisk(rng, 10000, 140.0f, 160.0f, 10.0f, attractorMass, 20.0f);
-    CreateOrbitalDisk(rng, 10000, 170.0f, 190.0f, 10.0f, attractorMass, 20.0f);
+    CreateOrbitalDisk(rng, 15000, 80.0f, 100.0f, 10.0f, attractorMass, 20.0f);
+    CreateOrbitalDisk(rng, 15000, 110.0f, 115.0f, 10.0f, attractorMass, 20.0f);
+    CreateOrbitalDisk(rng, 15000, 120.0f, 135.0f, 10.0f, attractorMass, 20.0f);
+    CreateOrbitalDisk(rng, 15000, 140.0f, 150.0f, 10.0f, attractorMass, 20.0f);
     //CreateBalancedParticle(rng, glm::vec3 { 20.0f, 20.0f, 20.0f }, attractorMass);
     // auto particleEntity = _registry.create();
     // _registry.emplace<MeshComponent>(particleEntity, _particleMesh);

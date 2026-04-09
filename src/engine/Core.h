@@ -13,6 +13,9 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <entt/entt.hpp>
+#include <mutex>
+#include <future>
+#include <thread>
 #include "System.h"
 #include "InputSystem.h"
 #include "MeshComponent.h"
@@ -27,6 +30,7 @@
 
 // ECS PORT
 #include "EcsDebugger.h"
+#include <queue>
 
 namespace Engine {
 
@@ -101,6 +105,8 @@ namespace Engine {
         glm::vec3 scale;
         float pad1;
     };
+
+    
 
     // base class for a renderable dynamic object
     class IRenderable {
@@ -261,8 +267,31 @@ namespace Engine {
     };
 
 
+class ThreadPool {
+public:
+    ThreadPool(size_t numThreads);
+    ~ThreadPool();
+
+    void Enqueue(std::function<void()> job);
+    void Wait(); // wait for all jobs
+
+    size_t threadCount;
+
+private:
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> jobs;
+
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::condition_variable doneCv;
+
+    bool stop = false;
+    size_t activeJobs = 0;
+};
+
     class Core {
         std::unique_ptr<WindowGLFW> _window;
+        static ThreadPool _threadPool;
         void InitWindow();
         void InitVulkan();
         void InitQueries();
@@ -390,21 +419,25 @@ namespace Engine {
         float _deltaTime = 0.0f;
 
         // Batched
-        std::unordered_map<MeshAsset*, std::vector<InstanceData>> _batches;
+        std::unordered_map<MeshAsset*, std::vector<InstanceData>> _batches;   
         //std::vector<DrawItem> _drawItems;
         AllocatedBuffer _instanceBuffer;
         float _timestampPeriod = 0.0f;
 
         // screenshot
-        VkBuffer _screenshotBuffer;
-        VkDeviceMemory _screenshotMemory;
-        bool _captureScreenShotPng = true;
+        // VkBuffer _screenshotBuffer;
+        // VkDeviceMemory _screenshotMemory;
+        AllocatedBuffer _pendingScreenshot { .buffer = VK_NULL_HANDLE, .allocation = nullptr, .info = {} };
+        VkExtent2D      _pendingScreenshotExtent { 0, 0 };
+        VkSubresourceLayout _pendingScreenshotLayout {};
 
     public:
-        Core() = default;
+        Core();
         void Init();
         void Run(); // main loop
         void Shutdown();
+
+        static ThreadPool& GetThreadPool() { return _threadPool; }
 
         DescriptorAllocator globalDescriptorAllocator;
         GPUSceneData sceneData;

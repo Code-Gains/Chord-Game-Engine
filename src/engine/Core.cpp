@@ -1,8 +1,5 @@
 #include <chrono>
 using Clock = std::chrono::high_resolution_clock;
-#include <mutex>
-#include <future>
-#include <thread>
 #include <cmath>
 #include "Core.h"
 //#include "VkInit.h"
@@ -17,15 +14,11 @@ using Clock = std::chrono::high_resolution_clock;
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
-// #define GLM_FORCE_LEFT_HANDED
-// #define GLM_ENABLE_EXPERIMENTAL
-
-// #include <glm/glm.hpp>
-// #include <glm/gtx/transform.hpp>
-
 #include <fastgltf/glm_element_traits.hpp>
 #include <fastgltf/core.hpp>
 #include <fastgltf/tools.hpp>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnullability-completeness"
@@ -45,8 +38,10 @@ namespace Engine {
 #endif
     // TODO Disable on NON Debug Builds
 
+    ThreadPool Core::_threadPool{std::thread::hardware_concurrency()};
+
     void Core::InitWindow() {
-        _window = std::make_unique<WindowGLFW>(1280, 720, "Vulkan Engine");
+        _window = std::make_unique<WindowGLFW>(1280, 720, "Chord Game Engine");
     }
 
     void Core::InitVulkan() {
@@ -140,73 +135,12 @@ namespace Engine {
     void Core::InitSwapchain() {
         CreateSwapchain(_window->GetWidth(), _window->GetHeight());
         CreateDrawImages(_window->GetWidth(), _window->GetHeight());
-        // //draw image size will match the window
-        // VkExtent3D drawImageExtent = {
-        //     static_cast<uint32_t>(_window->GetWidth()),
-        //     static_cast<uint32_t>(_window->GetHeight()),
-        //     1
-        // };
-
-        // //hardcoding the draw format to 32 bit float
-        // _drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-        // _drawImage.imageExtent = drawImageExtent;
-
-        // VkImageUsageFlags drawImageUsages{};
-        // drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        // drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        // drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-        // drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-        // VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
-
-        // //for the draw image, we want to allocate it from gpu local memory
-        // VmaAllocationCreateInfo rimg_allocinfo = {};
-        // rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        // rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        // //allocate and create the image
-        // vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
-
-        // //build a image-view for the draw image to use for rendering
-        // VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-
-        // VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
-
-        // // //add to deletion queues
-        // // _mainDeletionQueue.push_function([this]() {
-        // //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
-        // //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
-        // // });
-
-        // _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
-        // _depthImage.imageExtent = drawImageExtent;
-        // VkImageUsageFlags depthImageUsages{};
-        // depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-        // VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
-
-        // //allocate and create the image
-        // vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
-
-        // //build a image-view for the draw image to use for rendering
-        // VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-        // VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
-
-        //add to deletion queues
-        // _mainDeletionQueue.push_function([this]() {
-        //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
-        //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
-
-        //     vkDestroyImageView(_device, _depthImage.imageView, nullptr);
-        //     vmaDestroyImage(_allocator, _depthImage.image, _depthImage.allocation);
-        // });
 
     }
 
     void Core::InitCommands() {
         //create a command pool for commands submitted to the graphics queue.
-	//we also want the pool to allow for resetting of individual command buffers
+	    //we also want the pool to allow for resetting of individual command buffers
         VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
         for (int i = 0; i < FRAME_OVERLAP; i++) {
@@ -242,8 +176,6 @@ namespace Engine {
         for (int i = 0; i < FRAME_OVERLAP; i++) {
             VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_frames[i]._renderFence));
             VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_imageAvailableSemaphores[i]));
-            //VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._swapchainSemaphore));
-            //VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._renderSemaphore));
         }
 
         // per swapchain image sync
@@ -322,19 +254,6 @@ namespace Engine {
         if (_drawImage.imageView == VK_NULL_HANDLE || _drawImageDescriptors == VK_NULL_HANDLE)
             return; // safe guard if called too early
 
-        // VkDescriptorImageInfo imgInfo{};
-        // imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        // imgInfo.imageView = _drawImage.imageView;
-
-        // VkWriteDescriptorSet drawImageWrite{};
-        // drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        // drawImageWrite.dstSet = _drawImageDescriptors;
-        // drawImageWrite.dstBinding = 0;
-        // drawImageWrite.descriptorCount = 1;
-        // drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        // drawImageWrite.pImageInfo = &imgInfo;
-
-        // vkUpdateDescriptorSets(_device, 1, &drawImageWrite, 0, nullptr);
         DescriptorWriter writer;
         writer.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
         writer.update_set(_device,_drawImageDescriptors);
@@ -347,62 +266,6 @@ namespace Engine {
         vkDestroyDescriptorSetLayout(_device, _gpuSceneDataDescriptorLayout , nullptr);
         vkDestroyDescriptorSetLayout(_device, _singleImageDescriptorLayout , nullptr);
     }
-
-    // void Core::CreateDrawImages(uint32_t width, uint32_t height)
-    // {
-    //     //draw image size will match the window
-    //     VkExtent3D drawImageExtent = {
-    //         static_cast<uint32_t>(width),
-    //         static_cast<uint32_t>(height),
-    //         1
-    //     };
-
-    //     //hardcoding the draw format to 32 bit float
-    //     _drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-    //     _drawImage.imageExtent = drawImageExtent;
-
-    //     VkImageUsageFlags drawImageUsages{};
-    //     drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    //     drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    //     drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-    //     drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-    //     VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
-
-    //     //for the draw image, we want to allocate it from gpu local memory
-    //     VmaAllocationCreateInfo rimg_allocinfo = {};
-    //     rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-    //     rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    //     //allocate and create the image
-    //     vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
-
-    //     //build a image-view for the draw image to use for rendering
-    //     VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-
-    //     VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
-
-    //     // //add to deletion queues
-    //     // _mainDeletionQueue.push_function([this]() {
-    //     //     vkDestroyImageView(_device, _drawImage.imageView, nullptr);
-    //     //     vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
-    //     // });
-
-    //     _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
-    //     _depthImage.imageExtent = drawImageExtent;
-    //     VkImageUsageFlags depthImageUsages{};
-    //     depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-    //     VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
-
-    //     //allocate and create the image
-    //     vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
-
-    //     //build a image-view for the draw image to use for rendering
-    //     VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-    //     VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
-    // }
 
     void Core::CreateDrawImages(uint32_t width, uint32_t height)
     {
@@ -847,9 +710,61 @@ namespace Engine {
         // for (auto& system : _systems) {
         //     system->Update(0.0f);
         // }
+        auto registryView = _registry.view<Camera>();
+
+        auto cameraEntity = *registryView.begin();
+        auto& camera = registryView.get<Camera>(cameraEntity);
+
         FrameData& frameData = GetCurrentFrame();
         //wait until the gpu has finished rendering the last frame. Timeout of 1 second
         VK_CHECK(vkWaitForFences(_device, 1, &GetCurrentFrame()._renderFence, true, 1000000000));
+
+        // After vkWaitForFences, before anything else:
+        if (_pendingScreenshot.buffer != VK_NULL_HANDLE)
+        {
+            vkDeviceWaitIdle(_device);
+            void* data;
+            vmaMapMemory(_allocator, _pendingScreenshot.allocation, &data);
+
+
+            uint16_t* src = (uint16_t*)data;
+            uint32_t w = _pendingScreenshotExtent.width;
+            uint32_t h = _pendingScreenshotExtent.height;
+
+            // Convert R16G16B16A16_SFLOAT -> R8G8B8A8
+            std::vector<uint8_t> pixels(w * h * 4);
+            for (uint32_t i = 0; i < w * h * 4; i++)
+            {
+                // Proper float16 -> float32 conversion
+                uint16_t h16 = src[i];
+                uint32_t sign     = (h16 >> 15) & 0x1;
+                uint32_t exponent = (h16 >> 10) & 0x1F;
+                uint32_t mantissa = h16 & 0x3FF;
+                
+
+                float f;
+                if (exponent == 0) {
+                    f = std::ldexp((float)mantissa, -24); // denormal
+                } else if (exponent == 31) {
+                    f = 0.0f; // treat Inf and NaN as 0 instead of garbage
+                } else {
+                    f = std::ldexp((float)(mantissa | 0x400), (int)exponent - 25);
+                }
+
+                if (sign) f = -f;
+
+                // Guard against any remaining NaN/Inf slipping through
+                if (!std::isfinite(f)) f = 0.0f;
+
+                pixels[i] = (uint8_t)(std::clamp(f, 0.0f, 1.0f) * 255.0f + 0.5f);
+            }
+
+            stbi_write_png("screenshot.png", w, h, 4, pixels.data(), w * 4);
+
+            vmaUnmapMemory(_allocator, _pendingScreenshot.allocation);
+            DestroyBuffer(_pendingScreenshot);
+            _pendingScreenshot.buffer = VK_NULL_HANDLE;
+        }
 
         frameData._deletionQueue.flush();
         frameData._frameDescriptors.clear_pools(_device);
@@ -889,6 +804,73 @@ namespace Engine {
         vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         vkutil::transition_image(cmd, _depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
         DrawGeometry(cmd);
+        {
+            if (camera.screenshotRequested)
+            {
+                 camera.screenshotRequested = false;
+
+                // 1. Transition draw image to transfer source
+                vkutil::transition_image(cmd, _drawImage.image,
+                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+                // Ensure all color attachment writes are visible before the transfer read
+                VkMemoryBarrier2 memBarrier = {};
+                memBarrier.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+                memBarrier.srcStageMask  = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+                memBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+                memBarrier.dstStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+                memBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+
+                VkDependencyInfo depInfo = {};
+                depInfo.sType                = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+                depInfo.memoryBarrierCount   = 1;
+                depInfo.pMemoryBarriers      = &memBarrier;
+
+                vkCmdPipelineBarrier2(cmd, &depInfo);
+
+                // Query actual row pitch
+                VkImageSubresource subResource = {};
+                subResource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                subResource.mipLevel = 0;
+                subResource.arrayLayer = 0;
+                VkSubresourceLayout subResourceLayout;
+                vkGetImageSubresourceLayout(_device, _drawImage.image, &subResource, &subResourceLayout);
+                
+                // 2. Create a host-visible staging buffer
+                VkDeviceSize imageSize = _drawExtent.width * _drawExtent.height * 8; // RGBA16
+                AllocatedBuffer stagingBuffer = CreateBuffer(imageSize,
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                    VMA_MEMORY_USAGE_CPU_ONLY);
+
+                // 3. Copy image to buffer
+                VkBufferImageCopy copyRegion = {};
+                copyRegion.bufferOffset = 0;
+                copyRegion.bufferRowLength = 0;
+                copyRegion.bufferImageHeight = 0;
+                copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                copyRegion.imageSubresource.mipLevel = 0;
+                copyRegion.imageSubresource.baseArrayLayer = 0;
+                copyRegion.imageSubresource.layerCount = 1;
+                copyRegion.imageExtent = { _drawExtent.width, _drawExtent.height, 1 };
+
+                vkCmdCopyImageToBuffer(cmd, _drawImage.image,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    stagingBuffer.buffer, 1, &copyRegion);
+
+                // 4. Transition back so the rest of the frame continues normally
+                vkutil::transition_image(cmd, _drawImage.image,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+                // 5. After command buffer submission + fence wait, map and save
+                //    Queue this as a post-frame callback, or do it inline after vkWaitForFences next frame.
+                //    Simplest: store the buffer and save after the fence signals.
+                _pendingScreenshot = stagingBuffer; // store for readback
+                _pendingScreenshotExtent = _drawExtent;
+            }
+           // record png image
+        }
 
         //transition the draw image and the swapchain image into their correct transfer layouts
         vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -1208,19 +1190,18 @@ namespace Engine {
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instancedMeshPipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instancedMeshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
-         // ECS Singles Rendering
+        // ECS Singles Rendering
         {
             auto t0 = Clock::now();
-            _batches.clear(); // clear previous frame data
+            //_batches.clear(); // clear previous frame data
             // exclude entities that are not meant for batch rendering
             auto registryView = _registry.view<MeshComponent, Transform>(entt::exclude<SingleRenderTag>);
             size_t offset2 = 0;
 
 
-            size_t numThreads = std::thread::hardware_concurrency();
+            size_t numThreads = _threadPool.threadCount;
             size_t numEntities = std::distance(registryView.begin(), registryView.end()); //1000000; // doesnt matter if it is accurate since this is just for load balancing
             size_t chunkSize = (numEntities + numThreads - 1) / numThreads;
-
 
             for (auto entity : registryView) {
                 auto& meshComponent = registryView.get<MeshComponent>(entity);
@@ -1228,12 +1209,12 @@ namespace Engine {
                 batch.resize(numEntities);
                 break;
             }
-            std::vector<std::unordered_map<MeshAsset*, std::vector<InstanceData>>> threadLocalBatches(numThreads);
-            std::vector<std::thread> threads;
+            std::vector<std::unordered_map<MeshAsset*, std::vector<InstanceData>>> threadLocalBatches(numThreads);  
 
             auto entitiesBegin = registryView.begin();
+
             for (size_t t = 0; t < numThreads; ++t) {
-                threads.emplace_back([&, t]() {
+                _threadPool.Enqueue([&, t]() {
                     size_t start = t * chunkSize;
                     size_t end = std::min(start + chunkSize, numEntities);
 
@@ -1244,28 +1225,21 @@ namespace Engine {
                         auto entity = *it;
                         auto& trans = registryView.get<Transform>(entity);
 
-                //     if (trans.position.x > 0)
-                //     trans.position.x -= 0.1;
-                // if (trans.position.y > 0)
-                //     trans.position.y -= 0.1;
-                // if (trans.position.z > 0)
-                //     trans.position.z -= 0.5;
-
-
                         InstanceData instance{};
                         instance.position = trans.position;
                         instance.rotation = trans.rotation;
                         instance.scale    = trans.scale;
 
-                        // write directly into batch using global index
+                        // same write as before
                         _batches.begin()->second[i] = instance;
                     }
                 });
             }
-            // Join all threads
-            for (auto& t : threads) t.join();
 
-            //auto t1 = Clock::now();
+            // wait instead of join
+            _threadPool.Wait();
+
+            auto t1 = Clock::now();
 
             size_t offset = 0; // starting point in the instance buffer
             for (auto& [mesh, instances] : _batches) {
@@ -1275,6 +1249,7 @@ namespace Engine {
                 memcpy(static_cast<char*>(_instanceBuffer.info.pMappedData) + offset,
                     instances.data(),
                     dataSize);
+
                 auto t2 = Clock::now();
 
                 // Save GPU device address for push constants
@@ -1304,12 +1279,12 @@ namespace Engine {
                                 0);
 
                 //offset += dataSize; // move pointer for the next batch
-                //auto t3 = Clock::now();
-                // auto ms = [](auto a, auto b) {
-                //     return std::chrono::duration<float, std::milli>(b - a).count();
-                // };
-                // printf("Build: %.2f ms | Upload: %.2f ms | Record: %.2f ms\n",
-                // ms(t0,t1), ms(t1,t2), ms(t2,t3));
+                auto t3 = Clock::now();
+                auto ms = [](auto a, auto b) {
+                    return std::chrono::duration<float, std::milli>(b - a).count();
+                };
+                //printf("Build: %.2f ms | Upload: %.2f ms | Record: %.2f ms\n",
+                //ms(t0,t1), ms(t1,t2), ms(t2,t3));
             }
         }
 
@@ -1892,7 +1867,12 @@ namespace Engine {
         return meshes;
     }
 
-    void Core::Init() {
+    Core::Core()
+    {
+    }
+
+    void Core::Init()
+    {
 #ifdef DEBUG
         ENGINE_LOG_INFO("Engine initializing in DEBUG mode!");
     #else
@@ -2019,6 +1999,7 @@ namespace Engine {
         if (!_isInitialized)
             return;
 
+        _threadPool.~ThreadPool(); // destroy thread pool
         vkDeviceWaitIdle(_device);
 
         // 1 destroy per frame resources
@@ -2184,10 +2165,75 @@ namespace Engine {
     {
     }
 
-void GLTFMetallic_Roughness::ClearResources(VkDevice device)
-{
-}
+    void GLTFMetallic_Roughness::ClearResources(VkDevice device)
+    {
+    }
 
-    //     return ds;
-    // }
+    ThreadPool::ThreadPool(size_t numThreads)
+    {
+        threadCount = numThreads;
+        for (size_t i = 0; i < numThreads; ++i) {
+            workers.emplace_back([this]() {
+                while (true) {
+                    std::function<void()> job;
+
+                    {
+                        std::unique_lock lock(mutex);
+                        cv.wait(lock, [&]() { return stop || !jobs.empty(); });
+
+                        if (stop && jobs.empty())
+                            return;
+
+                        job = std::move(jobs.front());
+                        jobs.pop();
+                        activeJobs++;
+                    }
+
+                    job();
+
+                    {
+                        std::unique_lock lock(mutex);
+                        activeJobs--;
+                        if (jobs.empty() && activeJobs == 0)
+                            doneCv.notify_one();
+                    }
+                }
+            });
+        }
+    }
+
+    ThreadPool::~ThreadPool()
+    {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            stop = true;
+        }
+
+        cv.notify_all();
+
+        for (auto& worker : workers) {
+            if (worker.joinable())
+                worker.join();
+        }
+    }
+
+    void ThreadPool::Enqueue(std::function<void()> job)
+    {
+        {
+            std::lock_guard lock(mutex);
+            jobs.push(std::move(job));
+        }
+        cv.notify_one();
+    }
+
+    void ThreadPool::Wait()
+    {
+        std::unique_lock lock(mutex);
+        doneCv.wait(lock, [&]() {
+            return jobs.empty() && activeJobs == 0;
+        });
+    }
+
+//     return ds;
+// }
 } // namespace engine
